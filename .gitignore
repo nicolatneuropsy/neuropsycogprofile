@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# PyInstaller / packaging build artifacts (never commit binaries)
+build/_pyi_build/
+build/_dmg_stage/
+dist/
+*.dmg
+*.exe
+*.app/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Smoke-test figure outputs from `python plots.py`
+smoke_*.png

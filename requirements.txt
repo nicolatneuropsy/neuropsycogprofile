@@ -1,0 +1,36 @@
+# NeuroCogProfile runtime dependencies.
+# Keep this list minimal. The scoring engine (engine.py) stays
+# dependency-free on purpose; the packages below are only needed
+# for the desktop shell, the figures, and the Word export.
+#
+# Install with:  pip install -r requirements.txt
+
+# Desktop shell (native window + js_api bridge, no HTTP server).
+pywebview>=4.4
+
+# Figures (single source of truth for every plot, on screen and in Word).
+matplotlib>=3.6
+
+# numpy is optional per the spec; it is used only in plots.py where it
+# materially simplifies the polar geometry. The engine never imports it.
+numpy>=1.23
+
+# Word (.docx) export.
+python-docx>=0.8.11
+
+# --- Platform backends that pywebview needs ---------------------------
+# Windows: the Edge WebView2 runtime must be installed on the machine
+# (it ships with current Windows 10/11); pythonnet drives the bridge.
+pythonnet>=3.0 ; sys_platform == "win32"
+
+# macOS: the system WebKit (WKWebView) is used through pyobjc.
+pyobjc-core>=9.0 ; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=9.0 ; sys_platform == "darwin"
+pyobjc-framework-WebKit>=9.0 ; sys_platform == "darwin"
+
+# Linux (development convenience): pywebview uses the GTK or Qt backend.
+# Install the system packages for one of them, then either:
+#   PyGObject (GTK)  or  PyQt5 / PySide2 (Qt).
+# These are intentionally left commented out so they are not pulled in
+# on Windows or macOS.
+# PyGObject ; sys_platform == "linux"

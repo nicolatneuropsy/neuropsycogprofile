@@ -1,0 +1,57 @@
+{
+  "name": "Default battery",
+  "threshold_sd": 1.0,
+  "domains": [
+    {
+      "name_fr": "Attention / Vitesse",
+      "name_en": "Attention / Speed",
+      "measures": [
+        { "name_fr": "Soutenue", "name_en": "Sustained" },
+        { "name_fr": "Sélective", "name_en": "Selective" },
+        { "name_fr": "Divisée", "name_en": "Divided" },
+        { "name_fr": "Vigilance", "name_en": "Vigilance" },
+        { "name_fr": "Vitesse de traitement", "name_en": "Processing speed" }
+      ]
+    },
+    {
+      "name_fr": "Fonctions exécutives",
+      "name_en": "Executive functions",
+      "measures": [
+        { "name_fr": "Inhibition", "name_en": "Inhibition" },
+        { "name_fr": "Flexibilité", "name_en": "Flexibility" },
+        { "name_fr": "Planification/organisation", "name_en": "Planning, organization" },
+        { "name_fr": "Régulation émotionnelle", "name_en": "Emotional regulation" }
+      ]
+    },
+    {
+      "name_fr": "Mémoire",
+      "name_en": "Memory",
+      "measures": [
+        { "name_fr": "À court terme", "name_en": "Short-term" },
+        { "name_fr": "À long terme", "name_en": "Long-term" },
+        { "name_fr": "MdeT visuospatiale", "name_en": "Visuospatial working memory" },
+        { "name_fr": "MdeT auditive", "name_en": "Auditory working memory" }
+      ]
+    },
+    {
+      "name_fr": "Habiletés visuospatiales",
+      "name_en": "Visuospatial skills",
+      "measures": [
+        { "name_fr": "Perception visuelle", "name_en": "Visual perception" },
+        { "name_fr": "Visuoconstruction", "name_en": "Visuoconstruction" },
+        { "name_fr": "Organisation visuospatiale", "name_en": "Visuospatial organization" },
+        { "name_fr": "Rotation mentale", "name_en": "Mental rotation" }
+      ]
+    },
+    {
+      "name_fr": "Langage",
+      "name_en": "Language",
+      "measures": [
+        { "name_fr": "Dénomination", "name_en": "Naming" },
+        { "name_fr": "Compréhension", "name_en": "Comprehension" },
+        { "name_fr": "Fluence verbale", "name_en": "Verbal fluency" },
+        { "name_fr": "Répétition", "name_en": "Repetition" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Local stylesheet only. No CDN, no external resource of any kind. -->
+  <title>NeuroCogProfile</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Persistent header: app name, threshold control, language toggle. -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <h1 id="app-title">NeuroCogProfile</h1>
+        <p id="app-tagline" class="tagline"></p>
+      </div>
+    </div>
+    <div class="header-controls">
+      <label class="threshold-control">
+        <span id="threshold-label"></span>
+        <input type="number" id="threshold-input" min="0" max="3" step="0.1" value="1.0">
+        <span class="unit">SD</span>
+      </label>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-lang="fr" class="lang-btn active">FR</button>
+        <button type="button" data-lang="en" class="lang-btn">EN</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Step / tab navigation. -->
+  <nav class="tabs">
+    <button type="button" class="tab active" data-view="battery" id="tab-battery"></button>
+    <button type="button" class="tab" data-view="entry" id="tab-entry"></button>
+    <button type="button" class="tab" data-view="results" id="tab-results"></button>
+  </nav>
+
+  <main>
+    <!-- ===== Battery view ===== -->
+    <section id="view-battery" class="view active">
+      <div class="view-head">
+        <div>
+          <h2 id="battery-title"></h2>
+          <p id="battery-help" class="muted"></p>
+        </div>
+        <div class="actions">
+          <button type="button" id="btn-load-template" class="btn"></button>
+          <button type="button" id="btn-save-template" class="btn"></button>
+        </div>
+      </div>
+      <div id="domain-list"></div>
+      <div class="battery-foot">
+        <button type="button" id="btn-add-domain" class="btn primary"></button>
+        <div class="addon">
+          <label id="addon-label" for="addon-select"></label>
+          <select id="addon-select"></select>
+          <button type="button" id="btn-add-addon" class="btn"></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Data entry view ===== -->
+    <section id="view-entry" class="view">
+      <div class="view-head">
+        <div><h2 id="entry-title"></h2></div>
+        <div class="actions">
+          <button type="button" id="btn-load-session" class="btn"></button>
+          <button type="button" id="btn-save-session" class="btn"></button>
+        </div>
+      </div>
+      <div class="patient-row">
+        <label id="pid-label" for="patient-id"></label>
+        <input type="text" id="patient-id" autocomplete="off" spellcheck="false">
+      </div>
+      <p id="pid-warning" class="warning"></p>
+      <div id="entry-grid"></div>
+      <div class="entry-foot">
+        <button type="button" id="btn-compute" class="btn primary large"></button>
+      </div>
+    </section>
+
+    <!-- ===== Results view ===== -->
+    <section id="view-results" class="view">
+      <div class="view-head">
+        <div><h2 id="results-title"></h2></div>
+        <div class="actions">
+          <div class="seg" id="radial-toggle" role="group">
+            <button type="button" data-mode="z" class="seg-btn active"></button>
+            <button type="button" data-mode="percentile" class="seg-btn"></button>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="summary-toggle" checked>
+            <span id="summary-toggle-label"></span>
+          </label>
+          <button type="button" id="btn-copy-table" class="btn"></button>
+          <button type="button" id="btn-export" class="btn primary"></button>
+        </div>
+      </div>
+      <p id="results-empty" class="muted"></p>
+      <div id="band-legend" class="legend"></div>
+      <div id="results-tables"></div>
+      <div id="results-plots"></div>
+      <div class="draft-block">
+        <h3 id="draft-title"></h3>
+        <textarea id="draft-text" rows="9" spellcheck="false"></textarea>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- Local script only. -->
+  <script src="app.js"></script>
+</body>
+</html>
