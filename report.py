@@ -26,11 +26,11 @@ from docx.shared import Inches, Pt, RGBColor
 
 from engine import ProfileResult, classify_band, format_percentile
 from plots import (
-    BAND_COLORS,
     band_index,
     close_fig,
     composite_figure,
     fig_to_png_bytes,
+    resolve_theme,
 )
 
 # --- 0. Palette and bilingual strings -------------------------
@@ -239,7 +239,7 @@ def _title_block(doc, s, patient_id, lang) -> None:
     _run(info, f"{_today_str(lang)}", size=10, color=INK)
 
 
-def _legend(doc, s, lang) -> None:
+def _legend(doc, s, lang, bands) -> None:
     _heading(doc, s["legend_title"], size=10.5, space_before=2)
     labels_fr = ["Extr. bas", "Limite", "Moy. inf.", "Moyenne",
                  "Moy. sup.", "Supérieur", "Très sup."]
@@ -250,11 +250,11 @@ def _legend(doc, s, lang) -> None:
     table.alignment = WD_TABLE_ALIGNMENT.LEFT
     _compact_cell_margins(table, top=14, bottom=14, left=40, right=40)
     for i, cell in enumerate(table.rows[0].cells):
-        _cell(cell, labels[i], size=7, align="center", fill=BAND_COLORS[i])
+        _cell(cell, labels[i], size=7, align="center", fill=bands[i])
         cell.width = Inches(0.98)
 
 
-def _table(doc, s, profile, inputs, lang) -> None:
+def _table(doc, s, profile, inputs, lang, bands) -> None:
     _heading(doc, s["table_title"], size=12, rule=True)
     table = doc.add_table(rows=1, cols=5)
     table.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -293,7 +293,7 @@ def _table(doc, s, profile, inputs, lang) -> None:
             _cell(cells[1], entered, size=9, align="center")
             _cell(cells[2], m.percentile_display, size=9, align="center", bold=True)
             _cell(cells[3], m.band(lang), size=8.5,
-                  fill=BAND_COLORS[band_index(m.percentile)])
+                  fill=bands[band_index(m.percentile)])
             marker = {"strength": s["strength"], "weakness": s["weakness"],
                       "within": s["within"]}[m.flag]
             mcolor = {"strength": STRENGTH, "weakness": WEAKNESS,
@@ -311,7 +311,7 @@ def _table(doc, s, profile, inputs, lang) -> None:
                   size=8.5, align="center", fill=MEAN_FILL)
             band_fr, band_en = classify_band(dom.mean_percentile)
             _cell(cells[3], band_fr if lang == "fr" else band_en, bold=True,
-                  size=8.5, fill=BAND_COLORS[band_index(dom.mean_percentile)])
+                  size=8.5, fill=bands[band_index(dom.mean_percentile)])
             _cell(cells[4], "", size=8.5, fill=MEAN_FILL)
             for i in range(5):
                 cells[i].width = _COLW[i]
@@ -359,6 +359,8 @@ def build_document(profile: ProfileResult,
     options = options or {}
     radial_mode = options.get("radial_mode", "z")
     show_summary = options.get("show_summary", True)
+    theme = options.get("theme")
+    bands, _accent, _accent_deep = resolve_theme(theme)
     s = _STRINGS["fr"] if lang == "fr" else _STRINGS["en"]
 
     doc = Document()
@@ -377,8 +379,8 @@ def build_document(profile: ProfileResult,
 
     # --- Page 1: clinical content ---
     _title_block(doc, s, patient_id, lang)
-    _legend(doc, s, lang)
-    _table(doc, s, profile, inputs, lang)
+    _legend(doc, s, lang, bands)
+    _table(doc, s, profile, inputs, lang, bands)
     _interpretation(doc, s, draft_text, lang)
     _footer(doc, s)
 
@@ -387,7 +389,7 @@ def build_document(profile: ProfileResult,
     if any_data:
         doc.add_page_break()
         _heading(doc, s["figures_title"], size=13, rule=True, space_before=0)
-        fig = composite_figure(profile, lang, radial_mode, show_summary)
+        fig = composite_figure(profile, lang, radial_mode, show_summary, theme)
         fig_w, fig_h = fig.get_size_inches()
         # Keep the whole grid on one page: never taller than the usable area.
         width_in = min(6.7, 8.6 * fig_w / fig_h)

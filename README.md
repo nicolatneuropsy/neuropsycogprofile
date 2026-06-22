@@ -74,6 +74,12 @@ The strength / weakness threshold (default 1.0 SD) is in the header and
 applies live. The radial scale of the radars can be switched between the
 honest z scale (default) and raw percentile in the Results tab.
 
+A color-theme picker in the Results tab offers preset palettes (Teal,
+Ocean, Lavender, Sage, Amber, Grayscale) that recolor the radars, the
+band cells and the legend together (and the Word export), and is saved
+with the session. All presets keep the colorblind-friendly,
+non-alarmist design (low scores stay the palest, never red).
+
 ## 5. Privacy model
 
 Patient data is PHI and never leaves the machine.

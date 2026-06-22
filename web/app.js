@@ -36,7 +36,7 @@ const T = {
     domain_mean: "Moyenne du domaine",
     strength: "Force relative", weakness: "Faiblesse relative", within: "Dans la moyenne",
     draft_title: "Texte interpretatif (brouillon, modifiable)",
-    copy_image: "Copier l'image", download_svg: "SVG",
+    copy_image: "Copier l'image", download_svg: "SVG", theme_label: "Theme de couleur",
     saved_template: "Modele enregistre", loaded_template: "Modele charge",
     saved_session: "Session enregistree", loaded_session: "Session chargee",
     exported: "Rapport Word enregistre", copied_image: "Image copiee",
@@ -68,7 +68,7 @@ const T = {
     domain_mean: "Domain mean",
     strength: "Relative strength", weakness: "Relative weakness", within: "Within average",
     draft_title: "Interpretive text (draft, editable)",
-    copy_image: "Copy image", download_svg: "SVG",
+    copy_image: "Copy image", download_svg: "SVG", theme_label: "Color theme",
     saved_template: "Template saved", loaded_template: "Template loaded",
     saved_session: "Session saved", loaded_session: "Session loaded",
     exported: "Word report saved", copied_image: "Image copied",
@@ -96,6 +96,8 @@ const state = {
   result: null,
   palette: null,
   addons: [],
+  theme: "teal",
+  themes: [],
   options: { radialMode: "z", showSummary: true },
 };
 
@@ -196,6 +198,7 @@ function batteryToSession() {
     threshold_sd: state.threshold,
     patient_id: state.patientId,
     language: state.lang,
+    theme: state.theme,
     domains: state.battery.domains.map((d) => ({
       name_fr: d.name_fr, name_en: d.name_en,
       measures: d.measures.map((m) => ({
@@ -238,6 +241,7 @@ function applyStaticStrings() {
   $("#btn-export").textContent = t("export");
   $("#results-empty").textContent = t("results_empty");
   $("#draft-title").textContent = t("draft_title");
+  $("#theme-label").textContent = t("theme_label");
 }
 
 function switchView(name) {
@@ -377,6 +381,32 @@ async function onCompute() {
 
 /* ---------- 7. Results view --------------------------------- */
 
+function renderThemeChips() {
+  const box = $("#theme-chips");
+  if (!box) return;
+  box.innerHTML = "";
+  state.themes.forEach((th) => {
+    const name = state.lang === "fr" ? th.name_fr : th.name_en;
+    const grad = `linear-gradient(to right, ${th.bands.join(",")})`;
+    box.appendChild(el("button", {
+      class: "theme-chip" + (th.key === state.theme ? " active" : ""),
+      title: name, onclick: () => setTheme(th.key),
+    }, [
+      el("span", { class: "swatch", style: `background:${grad}` }),
+      el("span", { class: "chip-name", text: name }),
+    ]));
+  });
+}
+
+async function setTheme(key) {
+  if (key === state.theme) return;
+  state.theme = key;
+  const pal = await api.get_palette(key);
+  if (pal && pal.ok) state.palette = pal;
+  renderThemeChips();
+  if (state.result) { renderLegend(); renderTables(); await renderPlots(); }
+}
+
 function renderLegend() {
   const box = $("#band-legend");
   box.innerHTML = "";
@@ -462,7 +492,7 @@ async function renderPlots() {
   const box = $("#results-plots");
   box.innerHTML = "";
   if (!state.result) return;
-  const opts = { lang: state.lang, radial_mode: state.options.radialMode };
+  const opts = { lang: state.lang, radial_mode: state.options.radialMode, theme: state.theme };
 
   if (state.options.showSummary) {
     const s = await api.render_summary_plot(opts);
@@ -486,6 +516,7 @@ async function refreshDraft() {
 
 async function renderResults() {
   const empty = $("#results-empty");
+  renderThemeChips();
   if (!state.result) { empty.style.display = "block"; return; }
   empty.style.display = "none";
   renderLegend();
@@ -592,6 +623,7 @@ async function setLang(lang) {
   $$(".lang-btn").forEach((b) => b.classList.toggle("active", b.dataset.lang === lang));
   applyStaticStrings();
   populateAddons();
+  renderThemeChips();
   renderBattery();
   renderEntry();
   if (state.result) await renderResults();
@@ -645,6 +677,11 @@ async function onLoadSession() {
   state.battery = normaliseBattery(s);
   state.patientId = s.patient_id || "";
   if (s.threshold_sd != null) { state.threshold = s.threshold_sd; $("#threshold-input").value = s.threshold_sd; }
+  if (s.theme && state.themes.some((th) => th.key === s.theme)) {
+    state.theme = s.theme;
+    const pal = await api.get_palette(s.theme);
+    if (pal && pal.ok) state.palette = pal;
+  }
   state.result = null;
   await setLang(s.language === "en" ? "en" : "fr");
   renderEntry();
@@ -654,7 +691,7 @@ async function onLoadSession() {
 
 async function onExport() {
   if (!state.result) return;
-  const opts = { radial_mode: state.options.radialMode, show_summary: state.options.showSummary };
+  const opts = { radial_mode: state.options.radialMode, show_summary: state.options.showSummary, theme: state.theme };
   const res = await api.export_docx($("#draft-text").value, state.lang, opts);
   if (res.ok) toast(t("exported"));
   else if (res.error) toast(res.error);
@@ -703,7 +740,14 @@ function wireEvents() {
 
 async function init() {
   try {
-    const pal = await api.get_palette();
+    const themes = await api.get_themes();
+    if (themes && themes.ok) {
+      state.themes = themes.themes;
+      if (themes.default) state.theme = themes.default;
+      renderThemeChips();
+    }
+
+    const pal = await api.get_palette(state.theme);
     if (pal && pal.ok) state.palette = pal;
 
     const addons = await api.get_addon_domains();

@@ -63,22 +63,57 @@ matplotlib.rcParams.update({
 
 # --- 0. Shared palette ---------------------------------------
 
-# Seven band colors, ordered from the lowest band to the highest.
-# Muted blue/teal sequential ramp (light -> deeper). Colorblind-safe
-# (monotonic in lightness) and never alarmist (no red for low scores).
-BAND_COLORS = [
-    "#eef4f5",  # Extremely low
-    "#e5eff1",  # Borderline
-    "#dbe9ed",  # Low average
-    "#cfe2e7",  # Average
-    "#c2dbe1",  # High average
-    "#b3d2da",  # Superior
-    "#a3cad4",  # Very superior
-]
+# Preset color themes for the radar plots (and, for consistency, the band
+# cells and the legend). Each theme is a 7-step band ramp from the lowest
+# band to the highest (light -> deeper, so equal-lightness steps keep it
+# colorblind-friendly and never alarmist: low scores are the palest, not
+# red), plus an accent for the patient polygon and a deeper accent for
+# titles. The user switches themes at runtime; "teal" is the default.
+THEMES = {
+    "teal": {
+        "name_fr": "Sarcelle", "name_en": "Teal",
+        "bands": ["#eef4f5", "#e5eff1", "#dbe9ed", "#cfe2e7",
+                  "#c2dbe1", "#b3d2da", "#a3cad4"],
+        "accent": "#2c6e8f", "accent_deep": "#1f5269",
+    },
+    "ocean": {
+        "name_fr": "Océan", "name_en": "Ocean",
+        "bands": ["#eef2fa", "#e2e9f6", "#d4dff1", "#c4d4ec",
+                  "#b0c5e6", "#9ab5df", "#82a4d8"],
+        "accent": "#3a5fa8", "accent_deep": "#28447d",
+    },
+    "lavender": {
+        "name_fr": "Lavande", "name_en": "Lavender",
+        "bands": ["#f3eff8", "#ebe3f3", "#e1d5ed", "#d5c6e5",
+                  "#c7b4dc", "#b7a1d1", "#a78ac6"],
+        "accent": "#6f57a8", "accent_deep": "#503d80",
+    },
+    "sage": {
+        "name_fr": "Sauge", "name_en": "Sage",
+        "bands": ["#eef5ef", "#e3efe5", "#d6e8da", "#c8e0ce",
+                  "#b6d6be", "#a3caac", "#8dbd98"],
+        "accent": "#3f8a5f", "accent_deep": "#2c6444",
+    },
+    "amber": {
+        "name_fr": "Ambre", "name_en": "Amber",
+        "bands": ["#fbf3e8", "#f7ecda", "#f2e2c8", "#ecd6b1",
+                  "#e5c997", "#dcba77", "#d0aa53"],
+        "accent": "#b07a2a", "accent_deep": "#8a5d18",
+    },
+    "mono": {
+        "name_fr": "Niveaux de gris", "name_en": "Grayscale",
+        "bands": ["#f2f3f4", "#e8eaeb", "#dcdee0", "#cfd2d5",
+                  "#bfc4c7", "#acb2b6", "#969ca2"],
+        "accent": "#3a4750", "accent_deep": "#262f35",
+    },
+}
+DEFAULT_THEME = "teal"
 
-# Single restrained accent for the patient polygon, markers and UI.
-ACCENT = "#2c6e8f"
-ACCENT_DEEP = "#1f5269"
+# Default module-level palette (the default theme), used when no theme is
+# given. Kept as module constants for backward compatibility.
+BAND_COLORS = THEMES[DEFAULT_THEME]["bands"]
+ACCENT = THEMES[DEFAULT_THEME]["accent"]
+ACCENT_DEEP = THEMES[DEFAULT_THEME]["accent_deep"]
 # Dark neutral for text that must read on top of any band.
 INK = "#26343c"
 MUTED = "#5b676e"
@@ -111,17 +146,46 @@ def band_index(percentile: float) -> int:
     return len(BANDS) - 1
 
 
-def palette() -> dict:
-    """Expose the canonical palette so the UI, the table and the plots
-    all use exactly the same band colors (single source of truth)."""
+def resolve_theme(theme=None):
+    """Return (bands, accent, accent_deep) for a theme key, a custom theme
+    dict ({"bands": [...7], "accent": ..., "accent_deep": ...}), or None
+    (the default theme). Invalid input falls back to the default."""
+    default = THEMES[DEFAULT_THEME]
+    if isinstance(theme, dict) and theme.get("bands"):
+        bands = list(theme["bands"])
+        accent = theme.get("accent", default["accent"])
+        accent_deep = theme.get("accent_deep", accent)
+    else:
+        chosen = THEMES.get(theme, default) if isinstance(theme, str) else default
+        bands = list(chosen["bands"])
+        accent, accent_deep = chosen["accent"], chosen["accent_deep"]
+    if len(bands) != 7:
+        bands = list(default["bands"])
+    return bands, accent, accent_deep
+
+
+def palette(theme=None) -> dict:
+    """Expose the resolved palette so the UI, the table and the plots all
+    use exactly the same band colors (single source of truth)."""
+    bands, accent, accent_deep = resolve_theme(theme)
     return {
-        "bands": list(BAND_COLORS),
-        "accent": ACCENT,
+        "bands": bands,
+        "accent": accent,
+        "accent_deep": accent_deep,
         "ink": INK,
         "labels_fr": [b[1] for b in BANDS],
         "labels_en": [b[2] for b in BANDS],
         "ring_pctls": list(RING_PCTLS),
     }
+
+
+def theme_list() -> list:
+    """The preset themes for the UI picker (key, bilingual name, swatch)."""
+    return [
+        {"key": k, "name_fr": v["name_fr"], "name_en": v["name_en"],
+         "bands": list(v["bands"]), "accent": v["accent"]}
+        for k, v in THEMES.items()
+    ]
 
 
 def _wrap(label: str, width: int = 14) -> str:
@@ -163,12 +227,13 @@ def _pos_of_z(z: float, mode: str) -> float:
 def _draw_radar(ax, labels: list[str], z_values: list[float],
                 pctl_displays: list[str], personal_mean_z: Optional[float],
                 lang: str = "fr", radial_mode: str = "z",
-                compact: bool = False) -> None:
+                compact: bool = False, theme=None) -> None:
     """Draw a report-grade radar onto a provided polar Axes.
 
     Sets no title and creates no figure, so the same drawing serves a
     full single figure and a small panel inside the composite page.
     """
+    bands, accent, accent_deep = resolve_theme(theme)
     mode = radial_mode if radial_mode in ("z", "percentile") else "z"
     axis_min, axis_max, edges, rings, ref_pos = _axis_params(mode)
     span = axis_max - axis_min
@@ -202,7 +267,7 @@ def _draw_radar(ax, labels: list[str], z_values: list[float],
     for i in range(len(edges) - 1):
         ax.fill_between(theta, np.full_like(theta, edges[i] - axis_min),
                         np.full_like(theta, edges[i + 1] - axis_min),
-                        color=BAND_COLORS[i], linewidth=0.0, zorder=0)
+                        color=bands[i], linewidth=0.0, zorder=0)
 
     # Faint radial spokes give the plot structure.
     for a in angles:
@@ -224,18 +289,18 @@ def _draw_radar(ax, labels: list[str], z_values: list[float],
     if personal_mean_z is not None:
         mpos = _clamp(_pos_of_z(personal_mean_z, mode), axis_min, axis_max)
         ax.plot(theta, np.full_like(theta, mpos - axis_min),
-                color=ACCENT, lw=1.1, ls=(0, (3, 3)), alpha=0.55, zorder=3)
+                color=accent, lw=1.1, ls=(0, (3, 3)), alpha=0.55, zorder=3)
 
     # Patient polygon: subtle fill, white-haloed line, clean markers.
     rvals = [_pos_of_z(z, mode) - axis_min for z in z_values]
     ang_c = angles + [angles[0]]
     r_c = rvals + [rvals[0]]
-    ax.fill(ang_c, r_c, color=ACCENT, alpha=0.13, zorder=4)
-    ax.plot(ang_c, r_c, color=ACCENT, lw=poly_lw, solid_joinstyle="round",
+    ax.fill(ang_c, r_c, color=accent, alpha=0.13, zorder=4)
+    ax.plot(ang_c, r_c, color=accent, lw=poly_lw, solid_joinstyle="round",
             solid_capstyle="round", zorder=5,
             path_effects=[pe.Stroke(linewidth=halo_lw, foreground="white"),
                           pe.Normal()])
-    ax.scatter(angles, rvals, s=marker_s, color=ACCENT, edgecolors="white",
+    ax.scatter(angles, rvals, s=marker_s, color=accent, edgecolors="white",
                linewidths=edge_lw, zorder=6)
 
     # Percentile labels for the rings, in subtle white pills (full only).
@@ -254,7 +319,7 @@ def _draw_radar(ax, labels: list[str], z_values: list[float],
         off = 0.1 * span
         lr = r + off if (r + off) <= span * 0.965 else r - off
         ax.text(ang, lr, disp, fontsize=vtx_fs, fontweight="bold",
-                color=ACCENT_DEEP, ha="center", va="center", zorder=8,
+                color=accent_deep, ha="center", va="center", zorder=8,
                 bbox=vtx_bbox)
 
     # Sub-function names just outside the ring, aligned by direction.
@@ -275,16 +340,18 @@ def _radar_figure(labels: list[str],
                   title: str,
                   lang: str = "fr",
                   radial_mode: str = "z",
-                  subtitle: Optional[str] = None) -> plt.Figure:
+                  subtitle: Optional[str] = None,
+                  theme=None) -> plt.Figure:
     """Build a single, report-grade radar figure (on-screen and exports)."""
+    _bands, _accent, accent_deep = resolve_theme(theme)
     fig = plt.figure(figsize=(7.0, 7.3))
     ax = fig.add_subplot(111, projection="polar")
     fig.subplots_adjust(top=0.80, bottom=0.05, left=0.08, right=0.92)
     _draw_radar(ax, labels, z_values, pctl_displays, personal_mean_z,
-                lang, radial_mode, compact=False)
-    # A clean, prominent title in the accent color; muted subtitle beneath.
+                lang, radial_mode, compact=False, theme=theme)
+    # A clean, prominent title in the theme accent; muted subtitle beneath.
     fig.suptitle(title, y=0.972, fontsize=18, fontweight="bold",
-                 color=ACCENT_DEEP)
+                 color=accent_deep)
     if subtitle:
         fig.text(0.5, 0.926, subtitle, ha="center", va="center",
                  fontsize=10.5, color=MUTED)
@@ -296,7 +363,8 @@ def _radar_figure(labels: list[str],
 def domain_figure(domain: DomainResult,
                   personal_mean_z: Optional[float] = None,
                   lang: str = "fr",
-                  radial_mode: str = "z") -> tuple[Optional[plt.Figure], str]:
+                  radial_mode: str = "z",
+                  theme=None) -> tuple[Optional[plt.Figure], str]:
     """Return (figure, kind) for one domain.
 
     A radar needs at least three sub-functions to be meaningful. With
@@ -315,13 +383,14 @@ def domain_figure(domain: DomainResult,
         subtitle = (f"Moyenne du domaine : {phrase}" if lang == "fr"
                     else f"Domain mean: {phrase}")
     fig = _radar_figure(labels, zs, disp, personal_mean_z,
-                        domain.name(lang), lang, radial_mode, subtitle)
+                        domain.name(lang), lang, radial_mode, subtitle, theme)
     return fig, "radar"
 
 
 def summary_figure(profile: ProfileResult,
                    lang: str = "fr",
-                   radial_mode: str = "z") -> tuple[Optional[plt.Figure], str]:
+                   radial_mode: str = "z",
+                   theme=None) -> tuple[Optional[plt.Figure], str]:
     """Return (figure, kind) for the cross-domain summary, using each
     domain's mean. A radar needs at least three domains; with fewer, no
     figure is produced (kind 'none')."""
@@ -339,14 +408,15 @@ def summary_figure(profile: ProfileResult,
     zs = [d.mean_z for d in doms]
     disp = [format_percentile(d.mean_percentile) for d in doms]
     fig = _radar_figure(labels, zs, disp, profile.personal_mean_z,
-                        title, lang, radial_mode, subtitle)
+                        title, lang, radial_mode, subtitle, theme)
     return fig, "radar"
 
 
 def composite_figure(profile: ProfileResult,
                      lang: str = "fr",
                      radial_mode: str = "z",
-                     show_summary: bool = True) -> plt.Figure:
+                     show_summary: bool = True,
+                     theme=None) -> plt.Figure:
     """Lay every figure (summary first, then each domain) onto a single
     page as a tidy grid, for the visual page of the Word report."""
     pmz = profile.personal_mean_z
@@ -372,6 +442,7 @@ def composite_figure(profile: ProfileResult,
     if npan == 0:
         return plt.figure(figsize=(7.2, 2.0))
 
+    _bands, _accent, accent_deep = resolve_theme(theme)
     cols = 1 if npan == 1 else (2 if npan <= 6 else 3)
     rows = math.ceil(npan / cols)
     fig = plt.figure(figsize=(7.4, 0.3 + rows * 3.2))
@@ -379,9 +450,9 @@ def composite_figure(profile: ProfileResult,
     for idx, panel in enumerate(panels):
         ax = fig.add_subplot(rows, cols, idx + 1, projection="polar")
         _draw_radar(ax, panel["labels"], panel["z"], panel["disp"], pmz,
-                    lang, radial_mode, compact=True)
+                    lang, radial_mode, compact=True, theme=theme)
         ax.set_title(panel["title"], fontsize=13, fontweight="bold",
-                     color=ACCENT_DEEP, pad=11)
+                     color=accent_deep, pad=11)
 
     fig.subplots_adjust(top=0.955, bottom=0.035, left=0.05, right=0.95,
                         hspace=0.46, wspace=0.28)

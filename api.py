@@ -119,12 +119,17 @@ class Api:
         """Return the optional add-on domains for the Battery view."""
         return {"ok": True, "domains": ADDON_DOMAINS}
 
-    def get_palette(self) -> dict:
-        """Return the canonical band palette and labels (single source
-        of truth shared by the table, the legend and the plots)."""
-        pal = plots.palette()
+    def get_palette(self, theme=None) -> dict:
+        """Return the resolved band palette and labels for a theme (single
+        source of truth shared by the table, the legend and the plots)."""
+        pal = plots.palette(theme)
         pal["ok"] = True
         return pal
+
+    def get_themes(self) -> dict:
+        """Return the preset color themes for the radar plots."""
+        return {"ok": True, "themes": plots.theme_list(),
+                "default": plots.DEFAULT_THEME}
 
     def load_template(self) -> dict:
         """Open a JSON template chosen by the user."""
@@ -272,7 +277,8 @@ class Api:
         lang = "fr" if options.get("lang", "fr") == "fr" else "en"
         mode = options.get("radial_mode", "z")
         try:
-            fig, kind = plots.summary_figure(self._profile, lang, mode)
+            fig, kind = plots.summary_figure(self._profile, lang, mode,
+                                             theme=options.get("theme"))
             if fig is None:
                 return {"ok": False, "skip": True}
             png = plots.fig_to_base64_png(fig, dpi=options.get("dpi", 200))
@@ -299,7 +305,7 @@ class Api:
             return {"ok": False, "skip": True}
         try:
             fig, kind = plots.domain_figure(domain, self._profile.personal_mean_z,
-                                            lang, mode)
+                                            lang, mode, theme=options.get("theme"))
             if fig is None:
                 return {"ok": False, "skip": True}
             png = plots.fig_to_base64_png(fig, dpi=options.get("dpi", 200))
