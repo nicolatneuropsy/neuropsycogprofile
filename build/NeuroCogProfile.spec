@@ -27,8 +27,12 @@ binaries = []
 hiddenimports = []
 
 # Pull in the full webview backend (pyobjc on macOS, pythonnet on
-# Windows) so the native window works in the frozen app.
-for _pkg in ("webview",):
+# Windows) so the native window works in the frozen app, and the whole
+# python-docx package: its part templates (docx/templates/*.xml, used
+# for example when a footer is created) are data files that PyInstaller
+# does not always pick up on its own, which broke the Word export in
+# the packaged app.
+for _pkg in ("webview", "docx"):
     _d, _b, _h = collect_all(_pkg)
     datas += _d
     binaries += _b

@@ -8,135 +8,167 @@
 # clinician can substitute preferred wording (for example from their own
 # institutional references) for personal use.
 #
+# name_fr / name_en match the battery sub-function names (short, since
+# they sit under a domain heading). display_fr / display_en are the full
+# standalone names shown in the lexicon itself and in the report (for
+# example "Attention soutenue" rather than "Soutenue").
+#
 # Terms are matched to battery sub-functions by name (case-insensitive,
-# FR or EN). Renamed or custom sub-functions simply have no built-in
-# definition; the UI hides them from the lexicon checklist.
+# accent-insensitive, FR or EN). Renamed or custom sub-functions simply
+# have no built-in definition; the UI hides them from the checklist.
 # ============================================================
 
 from __future__ import annotations
 
 import unicodedata
 
-# Each entry: key, name_fr, name_en, def_fr, def_en.
+# Each entry: key, name_fr/en (battery match), display_fr/en, def_fr/en.
 TERMS = [
     # --- Attention / speed ---
     {"key": "sustained",
      "name_fr": "Soutenue", "name_en": "Sustained",
-     "def_fr": "Capacite a maintenir l'attention sur une tache pendant une periode prolongee, sans decrement marque du rendement.",
+     "display_fr": "Attention soutenue", "display_en": "Sustained attention",
+     "def_fr": "Capacité à maintenir l'attention sur une tâche pendant une période prolongée, sans déclin marqué du rendement.",
      "def_en": "Ability to maintain attention on a task over an extended period without a marked decline in performance."},
     {"key": "selective",
      "name_fr": "Sélective", "name_en": "Selective",
-     "def_fr": "Capacite a diriger l'attention vers l'information pertinente tout en resistant a la distraction.",
+     "display_fr": "Attention sélective", "display_en": "Selective attention",
+     "def_fr": "Capacité à diriger l'attention vers l'information pertinente tout en résistant à la distraction.",
      "def_en": "Ability to direct attention toward relevant information while resisting distraction."},
     {"key": "divided",
      "name_fr": "Divisée", "name_en": "Divided",
-     "def_fr": "Capacite a traiter simultanement plusieurs sources d'information ou a mener deux taches de front.",
+     "display_fr": "Attention divisée", "display_en": "Divided attention",
+     "def_fr": "Capacité à traiter simultanément plusieurs sources d'information ou à mener deux tâches de front.",
      "def_en": "Ability to process several sources of information at once or to carry out two tasks simultaneously."},
     {"key": "vigilance",
      "name_fr": "Vigilance", "name_en": "Vigilance",
-     "def_fr": "Capacite a detecter des stimulus rares ou imprevisibles au fil du temps, en maintenant un etat d'alerte.",
+     "display_fr": "Vigilance", "display_en": "Vigilance",
+     "def_fr": "Capacité à détecter des stimulus rares ou imprévisibles au fil du temps, en maintenant un état d'alerte.",
      "def_en": "Ability to detect rare or unpredictable stimuli over time while maintaining an alert state."},
     {"key": "processing-speed",
      "name_fr": "Vitesse de traitement", "name_en": "Processing speed",
-     "def_fr": "Rapidite avec laquelle l'information est percue, traitee et une reponse est produite.",
+     "display_fr": "Vitesse de traitement", "display_en": "Processing speed",
+     "def_fr": "Rapidité avec laquelle l'information est perçue, traitée et une réponse est produite.",
      "def_en": "Speed at which information is perceived and processed and a response is produced."},
 
     # --- Executive functions ---
     {"key": "inhibition",
      "name_fr": "Inhibition", "name_en": "Inhibition",
-     "def_fr": "Capacite a supprimer une reponse automatique ou dominante au profit d'une reponse plus adaptee au contexte.",
+     "display_fr": "Inhibition", "display_en": "Inhibition",
+     "def_fr": "Capacité à supprimer une réponse automatique ou dominante au profit d'une réponse plus adaptée au contexte.",
      "def_en": "Ability to suppress an automatic or dominant response in favour of one better suited to the context."},
     {"key": "flexibility",
      "name_fr": "Flexibilité", "name_en": "Flexibility",
-     "def_fr": "Capacite a alterner entre des taches, des regles ou des strategies selon les exigences changeantes.",
+     "display_fr": "Flexibilité cognitive", "display_en": "Cognitive flexibility",
+     "def_fr": "Capacité à alterner entre des tâches, des règles ou des stratégies selon les exigences changeantes.",
      "def_en": "Ability to shift between tasks, rules or strategies as demands change."},
     {"key": "planning",
      "name_fr": "Planification/organisation", "name_en": "Planning, organization",
-     "def_fr": "Capacite a anticiper les etapes d'une tache, a organiser les moyens et a sequencer les actions vers un but.",
+     "display_fr": "Planification et organisation", "display_en": "Planning and organization",
+     "def_fr": "Capacité à anticiper les étapes d'une tâche, à organiser les moyens et à séquencer les actions vers un but.",
      "def_en": "Ability to anticipate the steps of a task, organize resources and sequence actions toward a goal."},
     {"key": "emotional-regulation",
      "name_fr": "Régulation émotionnelle", "name_en": "Emotional regulation",
-     "def_fr": "Capacite a moduler l'intensite et l'expression des emotions en fonction du contexte et des buts.",
+     "display_fr": "Régulation émotionnelle", "display_en": "Emotional regulation",
+     "def_fr": "Capacité à moduler l'intensité et l'expression des émotions en fonction du contexte et des buts.",
      "def_en": "Ability to modulate the intensity and expression of emotions according to context and goals."},
 
     # --- Memory ---
     {"key": "short-term",
      "name_fr": "À court terme", "name_en": "Short-term",
-     "def_fr": "Maintien temporaire d'une quantite limitee d'information pendant quelques secondes, sans manipulation.",
+     "display_fr": "Mémoire à court terme", "display_en": "Short-term memory",
+     "def_fr": "Maintien temporaire d'une quantité limitée d'information pendant quelques secondes, sans manipulation.",
      "def_en": "Temporary retention of a limited amount of information for several seconds, without manipulation."},
     {"key": "long-term",
      "name_fr": "À long terme", "name_en": "Long-term",
-     "def_fr": "Encodage, consolidation et recuperation d'informations au-dela de l'empan immediat (minutes a annees).",
+     "display_fr": "Mémoire à long terme", "display_en": "Long-term memory",
+     "def_fr": "Encodage, consolidation et récupération d'informations au-delà de l'empan immédiat (de quelques minutes à plusieurs années).",
      "def_en": "Encoding, consolidation and retrieval of information beyond the immediate span (minutes to years)."},
     {"key": "visuospatial-wm",
      "name_fr": "MdeT visuospatiale", "name_en": "Visuospatial working memory",
-     "def_fr": "Maintien et manipulation mentale d'informations visuelles et spatiales sur une courte periode.",
+     "display_fr": "Mémoire de travail visuospatiale", "display_en": "Visuospatial working memory",
+     "def_fr": "Maintien et manipulation mentale d'informations visuelles et spatiales sur une courte période.",
      "def_en": "Short-term maintenance and mental manipulation of visual and spatial information."},
     {"key": "auditory-wm",
      "name_fr": "MdeT auditive", "name_en": "Auditory working memory",
-     "def_fr": "Maintien et manipulation mentale d'informations verbales ou auditives sur une courte periode.",
+     "display_fr": "Mémoire de travail auditive-verbale", "display_en": "Auditory-verbal working memory",
+     "def_fr": "Maintien et manipulation mentale d'informations verbales ou auditives sur une courte période.",
      "def_en": "Short-term maintenance and mental manipulation of verbal or auditory information."},
 
     # --- Visuospatial skills ---
     {"key": "visual-perception",
      "name_fr": "Perception visuelle", "name_en": "Visual perception",
-     "def_fr": "Analyse et interpretation des caracteristiques visuelles telles que les formes, les objets et les visages.",
+     "display_fr": "Perception visuelle", "display_en": "Visual perception",
+     "def_fr": "Analyse et interprétation des caractéristiques visuelles telles que les formes, les objets et les visages.",
      "def_en": "Analysis and interpretation of visual features such as shapes, objects and faces."},
     {"key": "visuoconstruction",
      "name_fr": "Visuoconstruction", "name_en": "Visuoconstruction",
-     "def_fr": "Capacite a assembler des elements pour reproduire ou construire une configuration (dessin, blocs).",
+     "display_fr": "Visuoconstruction", "display_en": "Visuoconstruction",
+     "def_fr": "Capacité à assembler des éléments pour reproduire ou construire une configuration (dessin, blocs).",
      "def_en": "Ability to assemble elements to reproduce or build a configuration (drawing, blocks)."},
     {"key": "visuospatial-organization",
      "name_fr": "Organisation visuospatiale", "name_en": "Visuospatial organization",
-     "def_fr": "Structuration des relations spatiales entre les elements d'une scene ou d'un ensemble complexe.",
+     "display_fr": "Organisation visuospatiale", "display_en": "Visuospatial organization",
+     "def_fr": "Structuration des relations spatiales entre les éléments d'une scène ou d'un ensemble complexe.",
      "def_en": "Structuring of spatial relations among the elements of a scene or complex array."},
     {"key": "mental-rotation",
      "name_fr": "Rotation mentale", "name_en": "Mental rotation",
-     "def_fr": "Capacite a imaginer le deplacement ou la rotation d'objets dans l'espace sans manipulation physique.",
+     "display_fr": "Rotation mentale", "display_en": "Mental rotation",
+     "def_fr": "Capacité à imaginer le déplacement ou la rotation d'objets dans l'espace sans manipulation physique.",
      "def_en": "Ability to imagine the movement or rotation of objects in space without physical manipulation."},
 
     # --- Language ---
     {"key": "naming",
      "name_fr": "Dénomination", "name_en": "Naming",
-     "def_fr": "Capacite a retrouver et a produire le mot correspondant a un objet, une image ou un concept.",
+     "display_fr": "Dénomination", "display_en": "Naming",
+     "def_fr": "Capacité à retrouver et à produire le mot correspondant à un objet, une image ou un concept.",
      "def_en": "Ability to retrieve and produce the word corresponding to an object, picture or concept."},
     {"key": "comprehension",
      "name_fr": "Compréhension", "name_en": "Comprehension",
-     "def_fr": "Capacite a saisir le sens du langage oral ou ecrit, du mot isole jusqu'aux consignes complexes.",
+     "display_fr": "Compréhension du langage", "display_en": "Language comprehension",
+     "def_fr": "Capacité à saisir le sens du langage oral ou écrit, du mot isolé jusqu'aux consignes complexes.",
      "def_en": "Ability to grasp the meaning of spoken or written language, from single words to complex instructions."},
     {"key": "verbal-fluency",
      "name_fr": "Fluence verbale", "name_en": "Verbal fluency",
-     "def_fr": "Production rapide de mots selon une contrainte donnee (categorie semantique ou lettre initiale).",
+     "display_fr": "Fluence verbale", "display_en": "Verbal fluency",
+     "def_fr": "Production rapide de mots selon une contrainte donnée (catégorie sémantique ou lettre initiale).",
      "def_en": "Rapid production of words under a given constraint (semantic category or initial letter)."},
     {"key": "repetition",
      "name_fr": "Répétition", "name_en": "Repetition",
-     "def_fr": "Capacite a reproduire verbalement des mots, des phrases ou des sequences entendues.",
+     "display_fr": "Répétition", "display_en": "Repetition",
+     "def_fr": "Capacité à reproduire verbalement des mots, des phrases ou des séquences entendus.",
      "def_en": "Ability to verbally reproduce heard words, sentences or sequences."},
 
     # --- Optional add-on domains ---
     {"key": "fine-motor-speed",
      "name_fr": "Vitesse motrice fine", "name_en": "Fine motor speed",
-     "def_fr": "Rapidite d'execution de mouvements precis de la main et des doigts.",
+     "display_fr": "Vitesse motrice fine", "display_en": "Fine motor speed",
+     "def_fr": "Rapidité d'exécution de mouvements précis de la main et des doigts.",
      "def_en": "Speed of execution of precise hand and finger movements."},
     {"key": "dexterity",
      "name_fr": "Dextérité", "name_en": "Dexterity",
-     "def_fr": "Precision et coordination des mouvements fins, notamment dans la manipulation d'objets.",
+     "display_fr": "Dextérité manuelle", "display_en": "Manual dexterity",
+     "def_fr": "Précision et coordination des mouvements fins, notamment dans la manipulation d'objets.",
      "def_en": "Precision and coordination of fine movements, particularly when manipulating objects."},
     {"key": "theory-of-mind",
      "name_fr": "Théorie de l'esprit", "name_en": "Theory of mind",
-     "def_fr": "Capacite a inferer les etats mentaux d'autrui, comme les croyances, les intentions et les emotions.",
+     "display_fr": "Théorie de l'esprit", "display_en": "Theory of mind",
+     "def_fr": "Capacité à inférer les états mentaux d'autrui, comme les croyances, les intentions et les émotions.",
      "def_en": "Ability to infer the mental states of others, such as beliefs, intentions and emotions."},
     {"key": "emotion-recognition",
      "name_fr": "Reconnaissance des émotions", "name_en": "Emotion recognition",
-     "def_fr": "Identification des emotions a partir d'indices faciaux, vocaux ou contextuels.",
+     "display_fr": "Reconnaissance des émotions", "display_en": "Emotion recognition",
+     "def_fr": "Identification des émotions à partir d'indices faciaux, vocaux ou contextuels.",
      "def_en": "Identification of emotions from facial, vocal or contextual cues."},
     {"key": "full-scale-iq",
      "name_fr": "QI global", "name_en": "Full-scale IQ",
-     "def_fr": "Estimation generale du fonctionnement intellectuel derivee d'un ensemble d'epreuves standardisees.",
+     "display_fr": "Quotient intellectuel global", "display_en": "Full-scale IQ",
+     "def_fr": "Estimation générale du fonctionnement intellectuel dérivée d'un ensemble d'épreuves standardisées.",
      "def_en": "General estimate of intellectual functioning derived from a set of standardized tasks."},
     {"key": "reasoning",
      "name_fr": "Raisonnement", "name_en": "Reasoning",
-     "def_fr": "Capacite a resoudre des problemes nouveaux, a degager des regles et a manipuler des concepts.",
+     "display_fr": "Raisonnement", "display_en": "Reasoning",
+     "def_fr": "Capacité à résoudre des problèmes nouveaux, à dégager des règles et à manipuler des concepts.",
      "def_en": "Ability to solve novel problems, extract rules and manipulate concepts."},
 ]
 
@@ -148,11 +180,13 @@ def _norm(name: str) -> str:
     return " ".join(text.lower().split())
 
 
-# Lookup by normalized FR or EN name.
+# Lookup by normalized FR or EN name (short battery names and full
+# display names both match, so renamed batteries using the long form
+# still find their definition).
 _BY_NAME: dict[str, dict] = {}
 for _t in TERMS:
-    _BY_NAME[_norm(_t["name_fr"])] = _t
-    _BY_NAME[_norm(_t["name_en"])] = _t
+    for _n in (_t["name_fr"], _t["name_en"], _t["display_fr"], _t["display_en"]):
+        _BY_NAME[_norm(_n)] = _t
 
 
 def find(name_fr: str, name_en: str) -> dict | None:

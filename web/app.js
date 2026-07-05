@@ -25,47 +25,50 @@ const T = {
   fr: {
     tagline: "Profil cognitif local et hors ligne",
     threshold_label: "Seuil force / faiblesse",
-    tab_battery: "Batterie", tab_entry: "Saisie", tab_results: "Resultats",
+    tab_battery: "Batterie", tab_entry: "Saisie", tab_results: "Résultats",
     battery_title: "Composition de la batterie",
-    battery_help: "Ajoutez, renommez et reordonnez les domaines et les sous-fonctions. Chaque nom possede une etiquette FR et EN; la langue affichee suit le bouton FR / EN.",
-    load_template: "Charger un modele", save_template: "Enregistrer le modele",
+    battery_help: "Ajoutez, renommez et réordonnez les domaines et les sous-fonctions. Chaque nom possède une étiquette FR et EN; la langue affichée suit le bouton FR / EN.",
+    load_template: "Charger un modèle", save_template: "Enregistrer le modèle",
     add_domain: "+ Ajouter un domaine", addon_label: "Domaines optionnels",
-    add_addon: "Inserer", add_measure: "+ Sous-fonction",
+    add_addon: "Insérer", add_measure: "+ Sous-fonction",
     new_domain: "Nouveau domaine", new_measure: "Nouvelle sous-fonction",
     entry_title: "Saisie des scores",
     load_session: "Charger une session", save_session: "Enregistrer la session",
     pid_label: "Identifiant", pid_ph: "ex. AB-001",
     clinician_label: "Clinicien(ne)", clinician_ph: "ex. Nicola Thibault, PhD.",
-    pid_warning: "N'inscrivez pas le nom complet ni d'autres renseignements identifiants. Rien n'est enregistre tant que vous n'enregistrez pas explicitement une session. Le nom du clinicien apparait en bas du rapport.",
-    series_title: "Series",
-    series_add: "+ Ajouter une serie (retest)",
-    series_remove: "Retirer la serie 2",
-    series_help: "Deux series se superposent sur les memes graphiques (ex. avec / sans medication).",
-    series_t1: "T1", series_t2: "T2",
+    pid_warning: "N'inscrivez pas le nom complet ni d'autres renseignements identifiants. Rien n'est enregistré tant que vous n'enregistrez pas explicitement une session. Le nom du clinicien apparaît au bas du rapport.",
+    series_title: "Mesures",
+    series_add: "+ Ajouter une deuxième mesure",
+    series_remove: "Retirer la deuxième mesure",
+    series_help: "Les deux mesures se superposent sur les mêmes graphiques (ex. avec / sans médication).",
+    series_t1: "Mesure 1", series_t2: "Deuxième mesure",
+    metric_all: "Type de score pour tout",
+    metric_all_apply: "Appliquer",
+    metric_all_done: "Type appliqué à toutes les sous-fonctions",
     col_measure: "Sous-fonction", col_value: "Score", col_metric: "Type",
     compute: "Calculer le profil",
     results_title: "Profil et figures",
-    mode_z: "Echelle z", mode_pct: "Percentile", summary_toggle: "Radar de synthese",
+    mode_z: "Échelle z", mode_pct: "Percentile", summary_toggle: "Radar de synthèse",
     copy_table: "Copier le tableau", export: "Exporter vers Word (.docx)",
-    results_empty: "Aucun resultat. Saisissez des scores puis cliquez sur Calculer le profil.",
-    col_series: "Serie",
+    results_empty: "Aucun résultat. Saisissez des scores puis cliquez sur Calculer le profil.",
+    col_series: "Mesure",
     col_score: "Score saisi", col_pct: "Percentile", col_band: "Bande", col_marker: "Marqueur",
     domain_mean: "Moyenne du domaine",
     strength: "Force relative", weakness: "Faiblesse relative", within: "Dans la moyenne",
     note_label: "Notes cliniques (domaine)",
-    note_ph: "Observations, justification des resultats...",
-    global_note_title: "Note generale (facultative)",
-    lexicon_title: "Lexique des fonctions evaluees",
-    lexicon_help: "Cochez les definitions a inclure dans le rapport; le texte est modifiable.",
-    lexicon_empty: "Aucune definition integree ne correspond aux fonctions administrees.",
-    draft_title: "Texte interpretatif (brouillon, modifiable)",
-    copy_image: "Copier l'image", download_svg: "SVG", theme_label: "Theme de couleur",
-    saved_template: "Modele enregistre", loaded_template: "Modele charge",
-    saved_session: "Session enregistree", loaded_session: "Session chargee",
-    exported: "Rapport Word enregistre", copied_image: "Image copiee",
-    copied_table: "Tableau copie", copy_failed: "Copie impossible dans cet environnement",
-    compute_error: "Erreur de calcul", load_error: "Echec du chargement",
-    confirm_del: "Supprimer ce domaine et ses donnees saisies ?",
+    note_ph: "Observations, justification des résultats...",
+    global_note_title: "Note générale (facultative)",
+    lexicon_title: "Lexique des fonctions évaluées",
+    lexicon_help: "Cochez les définitions à inclure dans le rapport; le texte est modifiable.",
+    lexicon_empty: "Aucune définition intégrée ne correspond aux fonctions administrées.",
+    draft_title: "Texte interprétatif (brouillon, modifiable)",
+    copy_image: "Copier l'image", download_svg: "SVG", theme_label: "Thème de couleur",
+    saved_template: "Modèle enregistré", loaded_template: "Modèle chargé",
+    saved_session: "Session enregistrée", loaded_session: "Session chargée",
+    exported: "Rapport Word enregistré", copied_image: "Image copiée",
+    copied_table: "Tableau copié", copy_failed: "Copie impossible dans cet environnement",
+    compute_error: "Erreur de calcul", load_error: "Échec du chargement",
+    confirm_del: "Supprimer ce domaine et ses données saisies ?",
   },
   en: {
     tagline: "Local, offline cognitive profile",
@@ -82,18 +85,21 @@ const T = {
     pid_label: "Identifier", pid_ph: "e.g. AB-001",
     clinician_label: "Clinician", clinician_ph: "e.g. Nicola Thibault, PhD.",
     pid_warning: "Do not enter the full name or other identifying information. Nothing is saved unless you explicitly save a session. The clinician name appears at the bottom of the report.",
-    series_title: "Series",
-    series_add: "+ Add a series (retest)",
-    series_remove: "Remove series 2",
-    series_help: "Two series overlay on the same figures (e.g. with / without medication).",
-    series_t1: "T1", series_t2: "T2",
+    series_title: "Measurements",
+    series_add: "+ Add a second measurement",
+    series_remove: "Remove the second measurement",
+    series_help: "Both measurements overlay on the same figures (e.g. with / without medication).",
+    series_t1: "Measurement 1", series_t2: "Second measurement",
+    metric_all: "Score type for everything",
+    metric_all_apply: "Apply",
+    metric_all_done: "Metric applied to every sub-function",
     col_measure: "Sub-function", col_value: "Score", col_metric: "Metric",
     compute: "Compute profile",
     results_title: "Profile and figures",
     mode_z: "z scale", mode_pct: "Percentile", summary_toggle: "Summary radar",
     copy_table: "Copy table", export: "Export to Word (.docx)",
     results_empty: "No results yet. Enter scores then click Compute profile.",
-    col_series: "Series",
+    col_series: "Measurement",
     col_score: "Entered score", col_pct: "Percentile", col_band: "Band", col_marker: "Marker",
     domain_mean: "Domain mean",
     strength: "Relative strength", weakness: "Relative weakness", within: "Within average",
@@ -442,6 +448,26 @@ function renderSeriesBar() {
     bar.appendChild(el("button", { class: "btn tiny", text: t("series_remove"), onclick: removeSeries }));
   }
   bar.appendChild(el("span", { class: "muted", text: t("series_help") }));
+
+  // Bulk metric switch: set every sub-function of every measurement to
+  // one score type in a single click (percentile, scaled, standard...).
+  const group = el("span", { class: "metric-all" });
+  group.appendChild(el("span", { class: "series-title", text: t("metric_all") }));
+  const sel = el("select", {});
+  METRICS.forEach((opt) => sel.appendChild(el("option", { value: opt.v, text: opt[state.lang] })));
+  group.appendChild(sel);
+  group.appendChild(el("button", {
+    class: "btn tiny", text: t("metric_all_apply"),
+    onclick: () => {
+      const metric = sel.value;
+      state.battery.domains.forEach((d) => d.measures.forEach((m) => {
+        m.entries.forEach((entry) => { entry.metric = metric; });
+      }));
+      renderEntry();
+      toast(t("metric_all_done"));
+    },
+  }));
+  bar.appendChild(group);
 }
 
 /* ---------- 7. Data entry view ------------------------------ */
@@ -713,6 +739,13 @@ function lexText(term) {
   return edits.en !== undefined ? edits.en : term.def_en;
 }
 
+// Full standalone name for the lexicon and the report, e.g.
+// "Attention soutenue" rather than the short battery name "Soutenue".
+function lexDisplayName(term) {
+  if (state.lang === "fr") return term.display_fr || term.name_fr;
+  return term.display_en || term.name_en;
+}
+
 function renderLexicon() {
   const panel = $("#lexicon-panel");
   const items = $("#lexicon-items");
@@ -744,8 +777,7 @@ function renderLexicon() {
       state.lex.edits[term.key][state.lang] = ta.value;
     });
     row.appendChild(cb);
-    row.appendChild(el("span", { class: "lex-name",
-                                 text: state.lang === "fr" ? term.name_fr : term.name_en }));
+    row.appendChild(el("span", { class: "lex-name", text: lexDisplayName(term) }));
     row.appendChild(ta);
     items.appendChild(row);
   });
@@ -756,7 +788,7 @@ function lexiconForExport() {
   return matchedLexTerms()
     .filter((term) => state.lex.checks[term.key] !== false)
     .map((term) => ({
-      term: state.lang === "fr" ? term.name_fr : term.name_en,
+      term: lexDisplayName(term),
       definition: lexText(term),
     }));
 }
@@ -1040,6 +1072,12 @@ function wireEvents() {
 
 async function init() {
   try {
+    // The state initialiser runs before translations are applied, so
+    // give the first measurement its localized default label here.
+    if (state.seriesLabels.length === 1 && state.seriesLabels[0] === "T1") {
+      state.seriesLabels[0] = t("series_t1");
+    }
+
     const themes = await api.get_themes();
     if (themes && themes.ok) {
       state.themes = themes.themes;

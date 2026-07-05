@@ -75,7 +75,7 @@ _STRINGS = {
         "legend_title": "Bandes de classification",
         "table_title": "Tableau des percentiles",
         "notes_title": "Notes cliniques",
-        "global_note": "Note generale",
+        "global_note": "Note générale",
         "draft_title": "Interprétation (brouillon)",
         "lexicon_title": "Lexique des fonctions évaluées",
         "cols": ["Sous-fonction", "Score", "Percentile", "Bande", "Indicateur"],

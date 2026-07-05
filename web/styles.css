@@ -235,6 +235,15 @@ main { max-width: 1060px; margin: 0 auto; padding: 20px 22px 70px; }
 }
 .series-tag.s1 { background: var(--accent); }
 .series-tag.s2 { background: #4c5660; }
+.metric-all {
+  display: inline-flex; align-items: center; gap: 7px;
+  margin-left: auto; padding-left: 14px;
+  border-left: 1px solid var(--line-soft);
+}
+.metric-all select {
+  padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px;
+  font: inherit; background: var(--surface);
+}
 
 .entry-table { width: 100%; border-collapse: collapse; }
 .entry-table th {

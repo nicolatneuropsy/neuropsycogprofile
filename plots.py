@@ -105,6 +105,18 @@ THEMES = {
                   "#bfc4c7", "#acb2b6", "#969ca2"],
         "accent": "#3a4750", "accent_deep": "#262f35",
     },
+    # Clinical convention used in Quebec neuropsychology (AQNP-style
+    # score-interpretation tables): warm colors for the low bands
+    # (red, orange, yellow), green for the average range, blues above.
+    # Muted tints so dark text stays readable in the table cells.
+    # Unlike the other presets this ramp is multi-hue by design; it
+    # follows the clinical convention rather than monotonic lightness.
+    "aqnp": {
+        "name_fr": "AQNP (clinique)", "name_en": "AQNP (clinical)",
+        "bands": ["#efb3ae", "#f5c899", "#f7e3a3", "#cfe6c4",
+                  "#cae3f2", "#a5cdeb", "#7fb4e0"],
+        "accent": "#2f6699", "accent_deep": "#24507a",
+    },
 }
 DEFAULT_THEME = "teal"
 
