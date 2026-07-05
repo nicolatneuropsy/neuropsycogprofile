@@ -339,17 +339,43 @@ class Api:
             "domains": domains,
         }
 
+    @staticmethod
+    def _text_profile(profile: engine.ProfileResult) -> engine.ProfileResult:
+        """Clone a profile with running-text names for the draft.
+
+        Battery sub-function names are short ("Sélective") because they
+        sit under a domain heading; the interpretive text needs the full
+        phrase ("l'attention sélective"). The clone substitutes the
+        lexicon phrase when the measure matches a known function; the
+        numbers, flags and structure are untouched (the engine is never
+        modified, and the table and radars keep the short names).
+        """
+        import dataclasses
+        domains = []
+        for d in profile.domains:
+            measures = []
+            for m in d.measures:
+                term = lexicon.find(m.name_fr, m.name_en)
+                if term:
+                    measures.append(dataclasses.replace(
+                        m, name_fr=term["phrase_fr"], name_en=term["phrase_en"]))
+                else:
+                    measures.append(m)
+            domains.append(dataclasses.replace(d, measures=measures))
+        return dataclasses.replace(profile, domains=domains)
+
     def get_report_text(self, lang: str = "fr") -> dict:
         """Draft interpretive text for the cached result. With two series
         the drafts are concatenated under their series labels."""
         if not self._profiles:
             return {"ok": False, "error": "Nothing computed yet."}
         lang = "fr" if lang == "fr" else "en"
-        if len(self._profiles) == 1:
+        profiles = [self._text_profile(p) for p in self._profiles]
+        if len(profiles) == 1:
             return {"ok": True,
-                    "text": engine.generate_report_text(self._profiles[0], lang)}
+                    "text": engine.generate_report_text(profiles[0], lang)}
         parts = []
-        for prof, lab in zip(self._profiles, self._series_labels):
+        for prof, lab in zip(profiles, self._series_labels):
             parts.append(f"[{lab}]")
             parts.append(engine.generate_report_text(prof, lang))
             parts.append("")

@@ -71,6 +71,8 @@ _STRINGS = {
     "fr": {
         "title": "PROFIL COGNITIF",
         "identifier": "Identifiant", "date": "Date",
+        "clinician": "Clinicien(ne)",
+        "credit": "Outil créé par Nicola Thibault, PhD.",
         "figures_title": "Profil visuel",
         "legend_title": "Bandes de classification",
         "table_title": "Tableau des percentiles",
@@ -88,6 +90,8 @@ _STRINGS = {
     "en": {
         "title": "COGNITIVE PROFILE",
         "identifier": "Identifier", "date": "Date",
+        "clinician": "Clinician",
+        "credit": "Tool created by Nicola Thibault, PhD.",
         "figures_title": "Visual profile",
         "legend_title": "Classification bands",
         "table_title": "Percentile table",
@@ -228,7 +232,7 @@ def _heading(doc, text, *, size=12.0, rule=True, space_before=12) -> None:
 
 # --- 2. Page sections -----------------------------------------
 
-def _title_block(doc, s, patient_id, lang) -> None:
+def _title_block(doc, s, patient_id, clinician, lang) -> None:
     title = doc.add_paragraph()
     title.paragraph_format.space_after = Pt(2)
     _run(title, s["title"], bold=True, size=20, color=ACCENT_DEEP)
@@ -241,6 +245,11 @@ def _title_block(doc, s, patient_id, lang) -> None:
     _run(info, f"{patient_id or '-'}    ", size=10, color=INK)
     _run(info, f"{s['date']} ", bold=True, size=10, color=MUTED)
     _run(info, _today_str(lang), size=10, color=INK)
+    name = (clinician or "").strip()
+    if name:
+        _run(info, "    ", size=10)
+        _run(info, f"{s['clinician']} ", bold=True, size=10, color=MUTED)
+        _run(info, name, size=10, color=INK)
 
 
 def _figures(doc, s, profiles, series_labels, lang, options) -> None:
@@ -252,8 +261,8 @@ def _figures(doc, s, profiles, series_labels, lang, options) -> None:
     fig_w, fig_h = fig.get_size_inches()
     png = fig_to_png_bytes(fig, dpi=300)
     close_fig(fig)
-    # Keep the grid clearly in the upper part of the page.
-    width_in = min(6.9, 5.7 * fig_w / fig_h)
+    # Smaller, centered grid: cap both width and height.
+    width_in = min(6.0, 4.6 * fig_w / fig_h)
     para = doc.add_paragraph()
     para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     para.paragraph_format.space_before = Pt(2)
@@ -427,18 +436,17 @@ def _lexicon(doc, s, options) -> None:
         _run(p, it["definition"].strip(), size=9.5, color=INK)
 
 
-def _footer(doc, s, clinician: str) -> None:
-    """Watermark footer: clinician bottom-left, page number bottom-right,
-    and the local-generation disclaimer on a second, smaller line."""
+def _footer(doc, s) -> None:
+    """Watermark footer: the tool credit bottom-left on every page, the
+    page number bottom-right, and the local-generation disclaimer on a
+    second, smaller line."""
     footer = doc.sections[0].footer
     p = footer.paragraphs[0]
     p.text = ""
     p.paragraph_format.tab_stops.add_tab_stop(Inches(6.9),
                                               WD_TAB_ALIGNMENT.RIGHT)
-    name = (clinician or "").strip()
-    if name:
-        _run(p, name, size=8.5, color=MUTED, bold=True)
-    _run(p, "\t", size=8.5)
+    _run(p, s["credit"], size=8, color=MUTED, bold=True)
+    _run(p, "\t", size=8)
     _page_field(p)
     p2 = footer.add_paragraph()
     _run(p2, s["footer"], italic=True, size=6.5, color=MUTED)
@@ -474,15 +482,18 @@ def build_document(profiles: list[ProfileResult],
 
     any_data = any(d.measures for p in profiles for d in p.domains)
 
-    _title_block(doc, s, patient_id, lang)
+    # Page 1: title and the visual profile; the tables start on a fresh
+    # page, followed by notes, the interpretation and the lexicon.
+    _title_block(doc, s, patient_id, options.get("clinician", ""), lang)
     if any_data:
         _figures(doc, s, profiles, series_labels, lang, options)
+        doc.add_page_break()
         _legend(doc, s, lang, bands)
     _table(doc, s, profiles, series_labels, inputs, lang, bands)
     _notes(doc, s, profiles, lang, options)
     _interpretation(doc, s, draft_text, lang)
     _lexicon(doc, s, options)
-    _footer(doc, s, options.get("clinician", ""))
+    _footer(doc, s)
 
     return doc
 

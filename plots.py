@@ -255,7 +255,8 @@ def _series_style(index: int, accent: str, accent_deep: str) -> dict:
 def _draw_radar(ax, labels: list[str], series: list[dict],
                 personal_mean_z: Optional[float],
                 lang: str = "fr", radial_mode: str = "z",
-                compact: bool = False, theme=None) -> None:
+                compact: bool = False, theme=None,
+                quartiles: bool = False) -> None:
     """Draw a report-grade radar onto a provided polar Axes.
 
     series is a list of dicts {"label", "z": [float|None per axis],
@@ -264,12 +265,21 @@ def _draw_radar(ax, labels: list[str], series: list[dict],
     means "not administered in this series": the vertex is skipped and
     the polygon edge is broken there rather than interpolated.
 
+    quartiles=True switches to the report style: percentile radial
+    scale with labelled quartile rings (0 at the center, then 25, 50,
+    75 and 100 at the outer edge), as printed in the Word report.
+
     Sets no title and creates no figure, so the same drawing serves a
     full single figure and a small panel inside the composite page.
     """
     bands, accent, accent_deep = resolve_theme(theme)
-    mode = radial_mode if radial_mode in ("z", "percentile") else "z"
+    mode = "percentile" if quartiles else (
+        radial_mode if radial_mode in ("z", "percentile") else "z")
     axis_min, axis_max, edges, rings, ref_pos = _axis_params(mode)
+    if quartiles:
+        # Quartile gridlines instead of the seven band boundaries; the
+        # labels 0 (center) and 100 (outer edge) are added separately.
+        rings = [(25.0, 25), (50.0, 50), (75.0, 75)]
     span = axis_max - axis_min
     n = len(labels)
     angles = [2.0 * math.pi * i / n for i in range(n)]
@@ -358,14 +368,21 @@ def _draw_radar(ax, labels: list[str], series: list[dict],
                    s=marker_s, color=st["color"], marker=st["marker"],
                    edgecolors="white", linewidths=edge_lw, zorder=6)
 
-    # Percentile labels for the rings, in subtle white pills (full only).
-    if show_ring_labels:
+    # Percentile labels for the rings, in subtle white pills. Quartile
+    # (report) mode always writes them, including 0 at the center and
+    # 100 at the outer edge, so the scale reads at a glance.
+    if show_ring_labels or quartiles:
         label_ang = math.pi / n
         ring_bbox = dict(boxstyle="round,pad=0.22", fc="white", ec=HAIRLINE,
                          lw=0.5, alpha=0.92)
-        for pos, p in rings:
-            ax.text(label_ang, pos - axis_min, str(p), fontsize=7.5, color=MUTED,
-                    ha="center", va="center", zorder=7, bbox=ring_bbox)
+        ring_fs = 6.4 if (compact and quartiles) else 7.5
+        label_positions = list(rings)
+        if quartiles:
+            label_positions = [(0.0, 0)] + label_positions + [(100.0, 100)]
+        for pos, p in label_positions:
+            ax.text(label_ang, pos - axis_min, str(p), fontsize=ring_fs,
+                    color=MUTED, ha="center", va="center", zorder=7,
+                    bbox=ring_bbox)
 
     # Percentile value at each vertex, in a crisp white pill. With one
     # series the pill sits outward of the point; with two, series 1 sits
@@ -619,15 +636,17 @@ def composite_figure(profiles: list[ProfileResult],
     cols = max(1, math.ceil(npan / 2))
     rows = math.ceil(npan / cols)
     multi = len(profiles) > 1
-    legend_pad = 0.5 if multi else 0.0
-    fig = plt.figure(figsize=(7.2, 0.3 + rows * 2.55 + legend_pad))
+    legend_pad = 0.45 if multi else 0.0
+    fig = plt.figure(figsize=(7.2, 0.3 + rows * 2.3 + legend_pad))
 
     for idx, panel in enumerate(panels):
         ax = fig.add_subplot(rows, cols, idx + 1, projection="polar")
         pmz = profiles[0].personal_mean_z if len(profiles) == 1 else None
+        # Report style: percentile scale with labelled quartile rings.
         _draw_radar(ax, panel["labels"], _attach_labels(panel, series_labels),
-                    pmz, lang, radial_mode, compact=True, theme=theme)
-        ax.set_title(panel["title"], fontsize=10.5, fontweight="bold",
+                    pmz, lang, radial_mode, compact=True, theme=theme,
+                    quartiles=True)
+        ax.set_title(panel["title"], fontsize=10, fontweight="bold",
                      color=accent_deep, pad=9)
 
     bottom = 0.10 if multi else 0.04
