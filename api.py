@@ -364,9 +364,70 @@ class Api:
             domains.append(dataclasses.replace(d, measures=measures))
         return dataclasses.replace(profile, domains=domains)
 
+    # Between-measurement change worth mentioning in the draft, in
+    # percentile points. Descriptive only, like the rest of the text.
+    CHANGE_PCTL = 25.0
+
+    def _changes_paragraph(self, lang: str) -> Optional[str]:
+        """Describe measures whose percentile moved by at least
+        CHANGE_PCTL points between the two measurement times. Purely
+        descriptive (no statistical test); names use the full lexicon
+        phrases when available."""
+        if len(self._profiles) < 2:
+            return None
+        p1, p2 = self._profiles[0], self._profiles[1]
+        l1, l2 = self._series_labels[0], self._series_labels[1]
+
+        def ord_fr(disp: str) -> str:
+            if disp.isdigit():
+                return "1er" if disp == "1" else f"{disp}e"
+            return disp
+        def ord_en(disp: str) -> str:
+            if not disp.isdigit():
+                return disp
+            n = int(disp)
+            if 10 <= n % 100 <= 20:
+                sfx = "th"
+            else:
+                sfx = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+            return f"{n}{sfx}"
+
+        items = []
+        for di in range(min(len(p1.domains), len(p2.domains))):
+            by2 = {(m.name_fr, m.name_en): m for m in p2.domains[di].measures}
+            for m1 in p1.domains[di].measures:
+                m2 = by2.get((m1.name_fr, m1.name_en))
+                if m2 is None:
+                    continue
+                if abs(m2.percentile - m1.percentile) < self.CHANGE_PCTL:
+                    continue
+                term = lexicon.find(m1.name_fr, m1.name_en)
+                if term:
+                    name = term["phrase_fr"] if lang == "fr" else term["phrase_en"]
+                else:
+                    name = m1.name_fr if lang == "fr" else m1.name_en
+                d1, d2 = m1.percentile_display, m2.percentile_display
+                if lang == "fr":
+                    items.append(f"{name} (du {ord_fr(d1)} au {ord_fr(d2)} percentile)")
+                else:
+                    items.append(f"{name} (from the {ord_en(d1)} to the {ord_en(d2)} percentile)")
+        if not items:
+            return None
+        joined = (", ".join(items[:-1]) + (" et " if lang == "fr" else " and ")
+                  + items[-1]) if len(items) > 1 else items[0]
+        n = int(self.CHANGE_PCTL)
+        if lang == "fr":
+            return (f"Changements entre {l1} et {l2} : {joined}. Ces écarts "
+                    f"d'au moins {n} points de percentile sont décrits à titre "
+                    "indicatif, sans test statistique.")
+        return (f"Changes between {l1} and {l2}: {joined}. These differences "
+                f"of at least {n} percentile points are descriptive; no "
+                "statistical test is implied.")
+
     def get_report_text(self, lang: str = "fr") -> dict:
         """Draft interpretive text for the cached result. With two series
-        the drafts are concatenated under their series labels."""
+        the drafts are concatenated under their series labels, followed
+        by a descriptive between-times changes paragraph."""
         if not self._profiles:
             return {"ok": False, "error": "Nothing computed yet."}
         lang = "fr" if lang == "fr" else "en"
@@ -379,6 +440,9 @@ class Api:
             parts.append(f"[{lab}]")
             parts.append(engine.generate_report_text(prof, lang))
             parts.append("")
+        changes = self._changes_paragraph(lang)
+        if changes:
+            parts.append(changes)
         return {"ok": True, "text": "\n".join(parts).strip()}
 
     # -- plots ------------------------------------------------

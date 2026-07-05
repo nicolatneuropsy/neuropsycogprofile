@@ -11,8 +11,9 @@
 #   4. Clinical notes (per domain and global), when provided.
 #   5. Interpretive draft.
 #   6. Optional lexicon of the assessed functions.
-# Every page carries the clinician's name bottom-left as a discreet
-# watermark, with the page number bottom-right.
+# Every page carries the fixed tool credit bottom-left as a discreet
+# watermark, with the page number bottom-right; the clinician's name
+# appears in the report header.
 #
 # Arial throughout. Everything is built in memory and written only to
 # the path the user picks. No patient data is persisted anywhere else.
@@ -84,8 +85,6 @@ _STRINGS = {
         "domain_mean": "Moyenne du domaine",
         "strength": "▲ Force", "weakness": "▼ Faiblesse", "within": "-",
         "no_data": "Aucune mesure administrée.",
-        "footer": ("Document généré localement. Brouillon à réviser et à "
-                   "valider selon le jugement clinique."),
     },
     "en": {
         "title": "COGNITIVE PROFILE",
@@ -103,8 +102,6 @@ _STRINGS = {
         "domain_mean": "Domain mean",
         "strength": "▲ Strength", "weakness": "▼ Weakness", "within": "-",
         "no_data": "No measure administered.",
-        "footer": ("Generated locally. Draft to be reviewed and validated "
-                   "with clinical judgement."),
     },
 }
 
@@ -261,8 +258,9 @@ def _figures(doc, s, profiles, series_labels, lang, options) -> None:
     fig_w, fig_h = fig.get_size_inches()
     png = fig_to_png_bytes(fig, dpi=300)
     close_fig(fig)
-    # Smaller, centered grid: cap both width and height.
-    width_in = min(6.0, 4.6 * fig_w / fig_h)
+    # Small, centered grid: cap both width and height so the visual
+    # profile stays an annex-sized block rather than filling the page.
+    width_in = min(4.7, 3.7 * fig_w / fig_h)
     para = doc.add_paragraph()
     para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     para.paragraph_format.space_before = Pt(2)
@@ -437,9 +435,8 @@ def _lexicon(doc, s, options) -> None:
 
 
 def _footer(doc, s) -> None:
-    """Watermark footer: the tool credit bottom-left on every page, the
-    page number bottom-right, and the local-generation disclaimer on a
-    second, smaller line."""
+    """Watermark footer: the tool credit bottom-left on every page and
+    the page number bottom-right."""
     footer = doc.sections[0].footer
     p = footer.paragraphs[0]
     p.text = ""
@@ -448,8 +445,6 @@ def _footer(doc, s) -> None:
     _run(p, s["credit"], size=8, color=MUTED, bold=True)
     _run(p, "\t", size=8)
     _page_field(p)
-    p2 = footer.add_paragraph()
-    _run(p2, s["footer"], italic=True, size=6.5, color=MUTED)
 
 
 # --- 3. Document assembly -------------------------------------
