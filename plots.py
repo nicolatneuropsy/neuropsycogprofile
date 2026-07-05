@@ -256,7 +256,8 @@ def _draw_radar(ax, labels: list[str], series: list[dict],
                 personal_mean_z: Optional[float],
                 lang: str = "fr", radial_mode: str = "z",
                 compact: bool = False, theme=None,
-                quartiles: bool = False) -> None:
+                quartiles: bool = False,
+                quartile_labels: bool = True) -> None:
     """Draw a report-grade radar onto a provided polar Axes.
 
     series is a list of dicts {"label", "z": [float|None per axis],
@@ -369,9 +370,9 @@ def _draw_radar(ax, labels: list[str], series: list[dict],
                    edgecolors="white", linewidths=edge_lw, zorder=6)
 
     # Percentile labels for the rings, in subtle white pills. Quartile
-    # (report) mode always writes them, including 0 at the center and
-    # 100 at the outer edge, so the scale reads at a glance.
-    if show_ring_labels or quartiles:
+    # (report) mode writes them (0 at the center up to 100 at the outer
+    # edge) unless the clinician turned the labels off.
+    if (quartiles and quartile_labels) or (not quartiles and show_ring_labels):
         label_ang = math.pi / n
         ring_bbox = dict(boxstyle="round,pad=0.22", fc="white", ec=HAIRLINE,
                          lw=0.5, alpha=0.92)
@@ -623,7 +624,8 @@ def composite_figure(profiles: list[ProfileResult],
                      lang: str = "fr",
                      radial_mode: str = "z",
                      show_summary: bool = True,
-                     theme=None) -> plt.Figure:
+                     theme=None,
+                     quartile_labels: bool = True) -> plt.Figure:
     """Every radar (summary first, then domains) as one compact grid of
     at most two rows, for the top of the Word report."""
     panels = build_panels(profiles, lang, show_summary)
@@ -645,7 +647,7 @@ def composite_figure(profiles: list[ProfileResult],
         # Report style: percentile scale with labelled quartile rings.
         _draw_radar(ax, panel["labels"], _attach_labels(panel, series_labels),
                     pmz, lang, radial_mode, compact=True, theme=theme,
-                    quartiles=True)
+                    quartiles=True, quartile_labels=quartile_labels)
         ax.set_title(panel["title"], fontsize=10, fontweight="bold",
                      color=accent_deep, pad=9)
 

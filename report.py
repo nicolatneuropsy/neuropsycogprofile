@@ -254,7 +254,8 @@ def _figures(doc, s, profiles, series_labels, lang, options) -> None:
     fig = composite_figure(profiles, series_labels, lang,
                            options.get("radial_mode", "z"),
                            options.get("show_summary", True),
-                           options.get("theme"))
+                           options.get("theme"),
+                           options.get("quartile_labels", True))
     fig_w, fig_h = fig.get_size_inches()
     png = fig_to_png_bytes(fig, dpi=300)
     close_fig(fig)

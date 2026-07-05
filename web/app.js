@@ -49,6 +49,7 @@ const T = {
     compute: "Calculer le profil",
     results_title: "Profil et figures",
     mode_z: "Échelle z", mode_pct: "Percentile", summary_toggle: "Radar de synthèse",
+    quartile_toggle: "Étiquettes 0-100 (rapport)",
     copy_table: "Copier le tableau", export: "Exporter vers Word (.docx)",
     results_empty: "Aucun résultat. Saisissez des scores puis cliquez sur Calculer le profil.",
     col_series: "Mesure",
@@ -97,6 +98,7 @@ const T = {
     compute: "Compute profile",
     results_title: "Profile and figures",
     mode_z: "z scale", mode_pct: "Percentile", summary_toggle: "Summary radar",
+    quartile_toggle: "0-100 labels (report)",
     copy_table: "Copy table", export: "Export to Word (.docx)",
     results_empty: "No results yet. Enter scores then click Compute profile.",
     col_series: "Measurement",
@@ -146,7 +148,7 @@ const state = {
   theme: "teal",
   themes: [],
   lex: { enabled: true, terms: [], checks: {}, edits: {} },
-  options: { radialMode: "z", showSummary: true },
+  options: { radialMode: "z", showSummary: true, quartileLabels: true },
 };
 
 /* ---------- 2. Tiny helpers --------------------------------- */
@@ -318,6 +320,7 @@ function applyStaticStrings() {
   $("#radial-toggle").querySelector('[data-mode="z"]').textContent = t("mode_z");
   $("#radial-toggle").querySelector('[data-mode="percentile"]').textContent = t("mode_pct");
   $("#summary-toggle-label").textContent = t("summary_toggle");
+  $("#quartile-toggle-label").textContent = t("quartile_toggle");
   $("#btn-copy-table").textContent = t("copy_table");
   $("#btn-export").textContent = t("export");
   $("#results-empty").textContent = t("results_empty");
@@ -1009,6 +1012,7 @@ async function onExport() {
   const opts = {
     radial_mode: state.options.radialMode,
     show_summary: state.options.showSummary,
+    quartile_labels: state.options.quartileLabels,
     theme: state.theme,
     clinician: state.clinician,
     notes: {
@@ -1058,6 +1062,9 @@ function wireEvents() {
   $("#summary-toggle").addEventListener("change", async (e) => {
     state.options.showSummary = e.target.checked;
     if (state.result) await renderPlots();
+  });
+  $("#quartile-toggle").addEventListener("change", (e) => {
+    state.options.quartileLabels = e.target.checked;
   });
   $("#lexicon-toggle").addEventListener("change", (e) => {
     state.lex.enabled = e.target.checked;
