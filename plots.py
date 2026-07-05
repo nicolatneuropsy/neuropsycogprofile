@@ -289,7 +289,7 @@ def _draw_radar(ax, labels: list[str], series: list[dict],
     # Size set: smaller and decluttered for compact composite panels.
     if compact:
         marker_s, poly_lw, halo_lw, edge_lw = 22, 1.6, 3.0, 1.3
-        vtx_fs, name_fs, name_w, name_rf = 7.0, 7.0, 12, 1.05
+        vtx_fs, name_fs, name_w, name_rf = 7.0, 7.0, 10, 1.05
         show_ring_labels = False
     else:
         marker_s, poly_lw, halo_lw, edge_lw = 58, 2.4, 4.4, 1.8
@@ -298,7 +298,15 @@ def _draw_radar(ax, labels: list[str], series: list[dict],
 
     # For compact panels, rotate by half a sector so the very top is a
     # gap between two spokes, leaving clean room for the panel title.
+    # Panels with one or two axes get fixed orientations instead: a
+    # single axis points down (away from the title) and a pair sits on
+    # a diagonal, so the wide name labels stay clear of the title and
+    # of neighbouring panels in the report grid.
     theta_off = math.pi / 2.0 + (math.pi / n if compact else 0.0)
+    if n == 1:
+        theta_off = -math.pi / 2.0
+    elif n == 2:
+        theta_off = math.pi / 4.0
     ax.set_theta_offset(theta_off)
     ax.set_theta_direction(-1)           # clockwise
     ax.set_ylim(0.0, span)
@@ -353,11 +361,15 @@ def _draw_radar(ax, labels: list[str], series: list[dict],
             ax.fill(angles + [angles[0]], [rv[i] for i in range(n)] + [rv[0]],
                     color=st["color"], alpha=0.13, zorder=4)
         # Edges between adjacent administered vertices (wrap included).
-        for i in range(n):
-            j = (i + 1) % n
-            if n > 1 and rv[i] is not None and rv[j] is not None:
-                if n == 2 and i == 1:
-                    break  # avoid drawing the same edge twice
+        # With fewer than three axes there is no polygon to draw: a
+        # segment between two opposite spokes would cut through the
+        # center and read as a trajectory, so those panels show markers
+        # (and their percentile pills) only.
+        if n >= 3:
+            for i in range(n):
+                j = (i + 1) % n
+                if rv[i] is None or rv[j] is None:
+                    continue
                 ax.plot([angles[i], angles[j]], [rv[i], rv[j]],
                         color=st["color"], lw=poly_lw, ls=st["ls"],
                         solid_joinstyle="round", solid_capstyle="round",
@@ -389,8 +401,9 @@ def _draw_radar(ax, labels: list[str], series: list[dict],
     # series the pill sits outward of the point; with two, series 1 sits
     # outward and series 2 inward so they never collide. In compact
     # two-series panels the pills are dropped (markers plus the shared
-    # legend stay), keeping small panels readable.
-    if not (compact and len(series) > 1):
+    # legend stay), except when there is no polygon (fewer than three
+    # axes), where the written value is the whole point of the panel.
+    if not (compact and len(series) > 1 and n >= 3):
         vtx_bbox = dict(boxstyle="round,pad=0.26", fc="white", ec="#c6d1d6",
                         lw=0.6, alpha=0.97)
         for si, ser in enumerate(series):
@@ -474,9 +487,9 @@ def build_panels(profiles: list[ProfileResult],
     Domains are aligned by index (every series comes from the same
     battery). Within a domain, the axes are the union of the measures
     administered in at least one series, in battery order; a series
-    missing a measure gets None at that axis. Panels need at least
-    three axes; smaller domains carry no figure (their scores stay in
-    the table).
+    missing a measure gets None at that axis. Every domain with data
+    gets a panel; with fewer than three axes the drawing degrades to
+    markers on the concentric bands, without a polygon.
 
     Returns dicts: {"title", "labels", "series": [{"label","z","disp"}]}.
     The series label is filled in by the caller (see figure builders).
@@ -522,7 +535,10 @@ def build_panels(profiles: list[ProfileResult],
             for m in v.measures:
                 if (m.name_fr, m.name_en) not in mkeys:
                     mkeys.append((m.name_fr, m.name_en))
-        if len(mkeys) < 3:
+        # Every domain with at least one administered measure gets a
+        # panel. With one or two axes the drawing shows markers on the
+        # concentric bands without a polygon (see _draw_radar).
+        if not mkeys:
             continue
         sers = []
         for v in variants:
@@ -587,7 +603,7 @@ def domain_figure(profiles: list[ProfileResult],
                   radial_mode: str = "z",
                   theme=None) -> tuple[Optional[plt.Figure], str]:
     """Radar for one domain, overlaying every series. Returns
-    (figure, kind); kind 'none' when fewer than three axes have data."""
+    (figure, kind); kind 'none' when the domain has no data at all."""
     panels = build_panels(profiles, lang, show_summary=False)
     panel = next((p for p in panels if p.get("domain_index") == domain_index),
                  None)
@@ -652,8 +668,8 @@ def composite_figure(profiles: list[ProfileResult],
                      color=accent_deep, pad=9)
 
     bottom = 0.10 if multi else 0.04
-    fig.subplots_adjust(top=0.94, bottom=bottom, left=0.05, right=0.95,
-                        hspace=0.50, wspace=0.30)
+    fig.subplots_adjust(top=0.94, bottom=bottom, left=0.06, right=0.94,
+                        hspace=0.50, wspace=0.55)
     if multi:
         fig.legend(handles=_series_legend_handles(series_labels, accent,
                                                   accent_deep),
