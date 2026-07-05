@@ -1,14 +1,21 @@
 # ============================================================
 # Word (.docx) export.
 #
-# Produces a clinician-ready, neuropsychological-report style document:
-#   Page 1  title block, band legend, a compact percentile table (one
-#           continuous table with shaded domain sections and domain-mean
-#           rows) and the interpretive draft.
-#   Page 2  the visual profile: every figure laid out on a single page.
+# Produces a clinician-ready document laid out like a neuropsychological
+# report annex:
+#   1. Title block (identifier, date).
+#   2. Visual profile: every radar in one compact grid, at most two
+#      rows, at the top of the page.
+#   3. Band legend and the percentile table (one continuous table with
+#      shaded domain sections; one row per data series per measure).
+#   4. Clinical notes (per domain and global), when provided.
+#   5. Interpretive draft.
+#   6. Optional lexicon of the assessed functions.
+# Every page carries the clinician's name bottom-left as a discreet
+# watermark, with the page number bottom-right.
 #
-# Arial throughout. Everything is built in memory and written only to the
-# path the user picks. No template or patient data is persisted elsewhere.
+# Arial throughout. Everything is built in memory and written only to
+# the path the user picks. No patient data is persisted anywhere else.
 # ============================================================
 
 from __future__ import annotations
@@ -64,37 +71,41 @@ _STRINGS = {
     "fr": {
         "title": "PROFIL COGNITIF",
         "identifier": "Identifiant", "date": "Date",
-        "personal_mean": "Moyenne propre (z)",
+        "figures_title": "Profil visuel",
         "legend_title": "Bandes de classification",
         "table_title": "Tableau des percentiles",
-        "figures_title": "Profil visuel",
+        "notes_title": "Notes cliniques",
+        "global_note": "Note generale",
         "draft_title": "Interprétation (brouillon)",
+        "lexicon_title": "Lexique des fonctions évaluées",
         "cols": ["Sous-fonction", "Score", "Percentile", "Bande", "Indicateur"],
         "domain_mean": "Moyenne du domaine",
-        "strength": "▲ Force", "weakness": "▼ Faiblesse", "within": "–",
+        "strength": "▲ Force", "weakness": "▼ Faiblesse", "within": "-",
         "no_data": "Aucune mesure administrée.",
-        "footer": ("Document généré localement. Brouillon à réviser et à valider "
-                   "selon le jugement clinique."),
+        "footer": ("Document généré localement. Brouillon à réviser et à "
+                   "valider selon le jugement clinique."),
     },
     "en": {
         "title": "COGNITIVE PROFILE",
         "identifier": "Identifier", "date": "Date",
-        "personal_mean": "Own average (z)",
+        "figures_title": "Visual profile",
         "legend_title": "Classification bands",
         "table_title": "Percentile table",
-        "figures_title": "Visual profile",
+        "notes_title": "Clinical notes",
+        "global_note": "General note",
         "draft_title": "Interpretation (draft)",
+        "lexicon_title": "Lexicon of assessed functions",
         "cols": ["Sub-function", "Score", "Percentile", "Band", "Indicator"],
         "domain_mean": "Domain mean",
-        "strength": "▲ Strength", "weakness": "▼ Weakness", "within": "–",
+        "strength": "▲ Strength", "weakness": "▼ Weakness", "within": "-",
         "no_data": "No measure administered.",
-        "footer": ("Generated locally. Draft to be reviewed and validated with "
-                   "clinical judgement."),
+        "footer": ("Generated locally. Draft to be reviewed and validated "
+                   "with clinical judgement."),
     },
 }
 
 # Column widths (sum ~6.9 inches inside 0.8 inch side margins on Letter).
-_COLW = [Inches(2.7), Inches(1.05), Inches(0.95), Inches(1.5), Inches(0.7)]
+_COLW = [Inches(2.6), Inches(1.15), Inches(0.95), Inches(1.5), Inches(0.7)]
 
 
 def _today_str(lang: str) -> str:
@@ -131,12 +142,10 @@ def _run(paragraph, text, *, bold=False, size=10.0, color=None, italic=False):
 
 
 def _cell(cell, text, *, bold=False, size=9.0, color=INK, align="left",
-          fill=None, valign="center") -> None:
+          fill=None, italic=False) -> None:
     """Replace a cell's content with one styled run, tightly spaced."""
     cell.text = ""
-    cell.vertical_alignment = {
-        "center": WD_ALIGN_VERTICAL.CENTER, "top": WD_ALIGN_VERTICAL.TOP,
-    }[valign]
+    cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     para = cell.paragraphs[0]
     para.alignment = {
         "left": WD_ALIGN_PARAGRAPH.LEFT, "center": WD_ALIGN_PARAGRAPH.CENTER,
@@ -144,7 +153,7 @@ def _cell(cell, text, *, bold=False, size=9.0, color=INK, align="left",
     }[align]
     para.paragraph_format.space_before = Pt(1)
     para.paragraph_format.space_after = Pt(1)
-    _run(para, text, bold=bold, size=size, color=color)
+    _run(para, text, bold=bold, size=size, color=color, italic=italic)
     if fill:
         _shade(cell, fill)
 
@@ -163,7 +172,7 @@ def _compact_cell_margins(table, top=22, bottom=22, left=70, right=70) -> None:
 
 
 def _set_borders(table, color=RULE_FILL, size=4) -> None:
-    """Give the table thin, light horizontal-and-vertical borders."""
+    """Give the table thin, light borders."""
     tbl_pr = table._tbl.tblPr
     borders = OxmlElement("w:tblBorders")
     for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
@@ -192,6 +201,9 @@ def _rule(paragraph, color=ACCENT_HEX, size=14) -> None:
 def _page_field(paragraph) -> None:
     """Insert a live PAGE number field."""
     run = paragraph.add_run()
+    run.font.name = FONT
+    run.font.size = Pt(7.5)
+    run.font.color.rgb = MUTED
     for kind, txt in (("begin", None), (None, "PAGE"), ("end", None)):
         if kind:
             fld = OxmlElement("w:fldChar")
@@ -204,7 +216,7 @@ def _page_field(paragraph) -> None:
             run._r.append(instr)
 
 
-def _heading(doc, text, *, size=12.5, rule=False, space_before=10) -> None:
+def _heading(doc, text, *, size=12.0, rule=True, space_before=12) -> None:
     """A styled section heading in the accent color."""
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(space_before)
@@ -212,14 +224,6 @@ def _heading(doc, text, *, size=12.5, rule=False, space_before=10) -> None:
     _run(p, text, bold=True, size=size, color=ACCENT_DEEP)
     if rule:
         _rule(p, color=ACCENT_HEX, size=8)
-
-
-def _add_centered_image(doc, png_bytes, width_in) -> None:
-    para = doc.add_paragraph()
-    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    para.paragraph_format.space_before = Pt(2)
-    para.paragraph_format.space_after = Pt(2)
-    para.add_run().add_picture(io.BytesIO(png_bytes), width=Inches(width_in))
 
 
 # --- 2. Page sections -----------------------------------------
@@ -232,15 +236,32 @@ def _title_block(doc, s, patient_id, lang) -> None:
 
     info = doc.add_paragraph()
     info.paragraph_format.space_before = Pt(4)
-    info.paragraph_format.space_after = Pt(6)
-    _run(info, f"{s['identifier']} ", bold=True, size=10, color=MUTED)
-    _run(info, f"{patient_id or '-'}  ", size=10, color=INK)
-    _run(info, f"{s['date']} ", bold=True, size=10, color=MUTED)
-    _run(info, f"{_today_str(lang)}", size=10, color=INK)
+    info.paragraph_format.space_after = Pt(4)
+    _run(info, f"{s['identifier']} ", bold=True, size=10, color=MUTED)
+    _run(info, f"{patient_id or '-'}    ", size=10, color=INK)
+    _run(info, f"{s['date']} ", bold=True, size=10, color=MUTED)
+    _run(info, _today_str(lang), size=10, color=INK)
+
+
+def _figures(doc, s, profiles, series_labels, lang, options) -> None:
+    """Compact radar grid (at most two rows) near the top of the report."""
+    fig = composite_figure(profiles, series_labels, lang,
+                           options.get("radial_mode", "z"),
+                           options.get("show_summary", True),
+                           options.get("theme"))
+    fig_w, fig_h = fig.get_size_inches()
+    png = fig_to_png_bytes(fig, dpi=300)
+    close_fig(fig)
+    # Keep the grid clearly in the upper part of the page.
+    width_in = min(6.9, 5.7 * fig_w / fig_h)
+    para = doc.add_paragraph()
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    para.paragraph_format.space_before = Pt(2)
+    para.paragraph_format.space_after = Pt(2)
+    para.add_run().add_picture(io.BytesIO(png), width=Inches(width_in))
 
 
 def _legend(doc, s, lang, bands) -> None:
-    _heading(doc, s["legend_title"], size=10.5, space_before=2)
     labels_fr = ["Extr. bas", "Limite", "Moy. inf.", "Moyenne",
                  "Moy. sup.", "Supérieur", "Très sup."]
     labels_en = ["Extr. low", "Borderline", "Low avg", "Average",
@@ -254,64 +275,90 @@ def _legend(doc, s, lang, bands) -> None:
         cell.width = Inches(0.98)
 
 
-def _table(doc, s, profile, inputs, lang, bands) -> None:
-    _heading(doc, s["table_title"], size=12, rule=True)
+def _table(doc, s, profiles: list[ProfileResult], series_labels, inputs,
+           lang, bands) -> None:
+    """One continuous percentile table; with two series, each measure
+    carries one row per administered series (series label in the Score
+    column), and each domain one mean row per series."""
+    _heading(doc, s["table_title"])
     table = doc.add_table(rows=1, cols=5)
     table.alignment = WD_TABLE_ALIGNMENT.LEFT
     table.autofit = False
     _set_borders(table)
     _compact_cell_margins(table)
 
-    # Header row (neutral gray, dark text).
     for i, label in enumerate(s["cols"]):
         align = "left" if i == 0 else "center"
         _cell(table.rows[0].cells[i], label, bold=True, size=8.5, color=INK,
               align=align, fill=HEADER_FILL)
         table.rows[0].cells[i].width = _COLW[i]
 
+    nser = len(profiles)
+    multi = nser > 1
+    # Per-series cursors into the engine results (administered only).
+    cursors = [[0] * len(p.domains) for p in profiles]
+
     any_data = False
-    for di, dom in enumerate(profile.domains):
-        if not dom.measures:
+    ndom = len(profiles[0].domains)
+    for di in range(ndom):
+        domain_rows = []
+        nmeas = len(inputs[di]) if di < len(inputs) else 0
+        for mi in range(nmeas):
+            for si in range(nser):
+                raw = inputs[di][mi][si] if si < len(inputs[di][mi]) else None
+                if raw is None:
+                    continue
+                r = profiles[si].domains[di].measures[cursors[si][di]]
+                cursors[si][di] += 1
+                domain_rows.append((mi, si, raw, r))
+        if not domain_rows:
             continue
         any_data = True
+        dom = profiles[0].domains[di]
 
-        # Domain section row (merged, neutral gray).
         drow = table.add_row()
         merged = drow.cells[0].merge(drow.cells[4])
         _cell(merged, dom.name(lang), bold=True, size=9, color=INK,
               fill=DOMAIN_FILL)
 
-        for mi, m in enumerate(dom.measures):
+        last_mi = None
+        for mi, si, raw, r in domain_rows:
             cells = table.add_row().cells
-            entered = ""
-            if di < len(inputs) and mi < len(inputs[di]):
-                raw = inputs[di][mi]
-                metric = _METRIC_LABEL.get(str(raw.get("metric", "")).lower(),
-                                           str(raw.get("metric", "")))
-                entered = f"{raw.get('value', '')} ({metric})".strip()
-            _cell(cells[0], m.name(lang), size=9)
-            _cell(cells[1], entered, size=9, align="center")
-            _cell(cells[2], m.percentile_display, size=9, align="center", bold=True)
-            _cell(cells[3], m.band(lang), size=8.5,
-                  fill=bands[band_index(m.percentile)])
+            name = r.name(lang) if mi != last_mi else ""
+            last_mi = mi
+            metric = _METRIC_LABEL.get(raw["metric"], raw["metric"])
+            score = f"{raw['value']} ({metric})"
+            if multi:
+                score = f"{series_labels[si]} · {score}"
+            _cell(cells[0], name, size=9)
+            _cell(cells[1], score, size=8.5, align="center")
+            _cell(cells[2], r.percentile_display, size=9, align="center",
+                  bold=True)
+            _cell(cells[3], r.band(lang), size=8.5,
+                  fill=bands[band_index(r.percentile)])
             marker = {"strength": s["strength"], "weakness": s["weakness"],
-                      "within": s["within"]}[m.flag]
+                      "within": s["within"]}[r.flag]
             mcolor = {"strength": STRENGTH, "weakness": WEAKNESS,
-                      "within": MUTED}[m.flag]
+                      "within": MUTED}[r.flag]
             _cell(cells[4], marker, size=8, align="center", color=mcolor)
             for i in range(5):
                 cells[i].width = _COLW[i]
 
-        # Domain-mean row.
-        if dom.mean_percentile is not None:
+        for si in range(nser):
+            d = profiles[si].domains[di]
+            if d.mean_percentile is None:
+                continue
             cells = table.add_row().cells
-            _cell(cells[0], s["domain_mean"], bold=True, size=8.5, fill=MEAN_FILL)
+            label = s["domain_mean"]
+            if multi:
+                label = f"{label} ({series_labels[si]})"
+            _cell(cells[0], label, bold=True, size=8.5, fill=MEAN_FILL)
             _cell(cells[1], "", size=8.5, fill=MEAN_FILL)
-            _cell(cells[2], format_percentile(dom.mean_percentile), bold=True,
+            _cell(cells[2], format_percentile(d.mean_percentile), bold=True,
                   size=8.5, align="center", fill=MEAN_FILL)
-            band_fr, band_en = classify_band(dom.mean_percentile)
+            band_fr, band_en = classify_band(d.mean_percentile)
             _cell(cells[3], band_fr if lang == "fr" else band_en, bold=True,
-                  size=8.5, fill=bands[band_index(dom.mean_percentile)])
+                  size=8.5, fill=bands[band_index(d.mean_percentile)])
             _cell(cells[4], "", size=8.5, fill=MEAN_FILL)
             for i in range(5):
                 cells[i].width = _COLW[i]
@@ -320,11 +367,37 @@ def _table(doc, s, profile, inputs, lang, bands) -> None:
         doc.add_paragraph(s["no_data"])
 
 
+def _notes(doc, s, profiles, lang, options) -> None:
+    """Clinical notes: one entry per annotated domain, plus a global
+    note. Section omitted entirely when no note was written."""
+    notes = options.get("notes") or {}
+    per_domain = notes.get("domains") or []
+    global_note = str(notes.get("global") or "").strip()
+    entries = []
+    for di, d in enumerate(profiles[0].domains):
+        raw = per_domain[di] if di < len(per_domain) else ""
+        text = str(raw or "").strip()
+        if text:
+            entries.append((d.name(lang), text))
+    if not entries and not global_note:
+        return
+    _heading(doc, s["notes_title"])
+    for name, text in entries:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(4)
+        _run(p, f"{name}. ", bold=True, size=10, color=INK)
+        _run(p, text, size=10, color=INK)
+    if global_note:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(4)
+        _run(p, f"{s['global_note']}. ", bold=True, size=10, color=INK)
+        _run(p, global_note, size=10, color=INK)
+
+
 def _interpretation(doc, s, draft_text, lang) -> None:
-    _heading(doc, s["draft_title"], size=12, rule=True)
-    lines = [ln for ln in (draft_text or "").split("\n")]
+    _heading(doc, s["draft_title"])
     first = True
-    for line in lines:
+    for line in (draft_text or "").split("\n"):
         if line.strip() == "":
             continue
         p = doc.add_paragraph()
@@ -337,30 +410,52 @@ def _interpretation(doc, s, draft_text, lang) -> None:
             _run(p, line, size=10.5, color=INK)
 
 
-def _footer(doc, s) -> None:
+def _lexicon(doc, s, options) -> None:
+    """Optional lexicon: term + definition lines, in the export language
+    (the UI assembles the checked, possibly edited entries)."""
+    items = options.get("lexicon") or []
+    items = [it for it in items
+             if str(it.get("term", "")).strip()
+             and str(it.get("definition", "")).strip()]
+    if not items:
+        return
+    _heading(doc, s["lexicon_title"])
+    for it in items:
+        p = doc.add_paragraph()
+        p.paragraph_format.space_after = Pt(3)
+        _run(p, f"{it['term'].strip()}. ", bold=True, size=9.5, color=INK)
+        _run(p, it["definition"].strip(), size=9.5, color=INK)
+
+
+def _footer(doc, s, clinician: str) -> None:
+    """Watermark footer: clinician bottom-left, page number bottom-right,
+    and the local-generation disclaimer on a second, smaller line."""
     footer = doc.sections[0].footer
     p = footer.paragraphs[0]
     p.text = ""
-    p.paragraph_format.tab_stops.add_tab_stop(Inches(6.9), WD_TAB_ALIGNMENT.RIGHT)
-    _run(p, s["footer"], italic=True, size=7.5, color=MUTED)
-    _run(p, "\t", size=7.5)
+    p.paragraph_format.tab_stops.add_tab_stop(Inches(6.9),
+                                              WD_TAB_ALIGNMENT.RIGHT)
+    name = (clinician or "").strip()
+    if name:
+        _run(p, name, size=8.5, color=MUTED, bold=True)
+    _run(p, "\t", size=8.5)
     _page_field(p)
+    p2 = footer.add_paragraph()
+    _run(p2, s["footer"], italic=True, size=6.5, color=MUTED)
 
 
 # --- 3. Document assembly -------------------------------------
 
-def build_document(profile: ProfileResult,
-                   inputs: list[list[dict]],
+def build_document(profiles: list[ProfileResult],
+                   series_labels: list[str],
+                   inputs: list,
                    draft_text: str,
                    patient_id: str,
                    lang: str = "fr",
                    options: Optional[dict] = None) -> Document:
     """Build and return the full report as a python-docx Document."""
     options = options or {}
-    radial_mode = options.get("radial_mode", "z")
-    show_summary = options.get("show_summary", True)
-    theme = options.get("theme")
-    bands, _accent, _accent_deep = resolve_theme(theme)
+    bands, _accent, _accent_deep = resolve_theme(options.get("theme"))
     s = _STRINGS["fr"] if lang == "fr" else _STRINGS["en"]
 
     doc = Document()
@@ -373,41 +468,36 @@ def build_document(profile: ProfileResult,
     sec.page_height = Inches(11)
     sec.page_width = Inches(8.5)
     sec.top_margin = Inches(0.7)
-    sec.bottom_margin = Inches(0.65)
+    sec.bottom_margin = Inches(0.7)
     sec.left_margin = Inches(0.8)
     sec.right_margin = Inches(0.8)
 
-    # --- Page 1: clinical content ---
-    _title_block(doc, s, patient_id, lang)
-    _legend(doc, s, lang, bands)
-    _table(doc, s, profile, inputs, lang, bands)
-    _interpretation(doc, s, draft_text, lang)
-    _footer(doc, s)
+    any_data = any(d.measures for p in profiles for d in p.domains)
 
-    # --- Page 2: visual profile (every figure on one page) ---
-    any_data = any(d.measures for d in profile.domains)
+    _title_block(doc, s, patient_id, lang)
     if any_data:
-        doc.add_page_break()
-        _heading(doc, s["figures_title"], size=13, rule=True, space_before=0)
-        fig = composite_figure(profile, lang, radial_mode, show_summary, theme)
-        fig_w, fig_h = fig.get_size_inches()
-        # Keep the whole grid on one page: never taller than the usable area.
-        width_in = min(6.7, 8.6 * fig_w / fig_h)
-        _add_centered_image(doc, fig_to_png_bytes(fig, dpi=300), width_in)
-        close_fig(fig)
+        _figures(doc, s, profiles, series_labels, lang, options)
+        _legend(doc, s, lang, bands)
+    _table(doc, s, profiles, series_labels, inputs, lang, bands)
+    _notes(doc, s, profiles, lang, options)
+    _interpretation(doc, s, draft_text, lang)
+    _lexicon(doc, s, options)
+    _footer(doc, s, options.get("clinician", ""))
 
     return doc
 
 
 def export_report(path: str,
-                  profile: ProfileResult,
-                  inputs: list[list[dict]],
+                  profiles: list[ProfileResult],
+                  series_labels: list[str],
+                  inputs: list,
                   draft_text: str,
                   patient_id: str,
                   lang: str = "fr",
                   options: Optional[dict] = None) -> str:
     """Build the document and save it to path. Returns the path."""
-    doc = build_document(profile, inputs, draft_text, patient_id, lang, options)
+    doc = build_document(profiles, series_labels, inputs, draft_text,
+                         patient_id, lang, options)
     doc.save(path)
     return path
 
@@ -429,15 +519,44 @@ if __name__ == "__main__":
         DomainInput("Mémoire", "Memory", [
             MeasureInput("À court terme", "Short-term", 25, "percentile"),
             MeasureInput("À long terme", "Long-term", 1.5, "z"),
+            MeasureInput("MdeT auditive", "Auditory WM", 60, "t"),
         ]),
     ]
-    profile = process_profile(demo, "DEMO-01", 1.0)
-    inputs = [
-        [{"value": "8", "metric": "scaled"}, {"value": "50", "metric": "t"},
-         {"value": "5", "metric": "percentile"}, {"value": "-0.5", "metric": "z"}],
-        [{"value": "25", "metric": "percentile"}, {"value": "1.5", "metric": "z"}],
+    demo2 = [
+        DomainInput("Attention / Vitesse", "Attention / Speed", [
+            MeasureInput("Soutenue", "Sustained", 11, "scaled"),
+            MeasureInput("Sélective", "Selective", 55, "t"),
+            MeasureInput("Vigilance", "Vigilance", 0.2, "z"),
+        ]),
+        DomainInput("Mémoire", "Memory", [
+            MeasureInput("À court terme", "Short-term", 45, "percentile"),
+            MeasureInput("À long terme", "Long-term", 1.1, "z"),
+            MeasureInput("MdeT auditive", "Auditory WM", 63, "t"),
+        ]),
     ]
-    draft = generate_report_text(profile, "fr")
-    out = export_report(tempfile.mktemp(suffix=".docx"), profile, inputs,
-                        draft, "DEMO-01", "fr", {"radial_mode": "z"})
+    p1 = process_profile(demo, "DEMO-01", 1.0)
+    p2 = process_profile(demo2, "DEMO-01", 1.0)
+    inputs = [
+        [[{"value": "8", "metric": "scaled"}, {"value": "11", "metric": "scaled"}],
+         [{"value": "50", "metric": "t"}, {"value": "55", "metric": "t"}],
+         [{"value": "5", "metric": "percentile"}, None],
+         [{"value": "-0.5", "metric": "z"}, {"value": "0.2", "metric": "z"}]],
+        [[{"value": "25", "metric": "percentile"}, {"value": "45", "metric": "percentile"}],
+         [{"value": "1.5", "metric": "z"}, {"value": "1.1", "metric": "z"}],
+         [{"value": "60", "metric": "t"}, {"value": "63", "metric": "t"}]],
+    ]
+    draft = generate_report_text(p1, "fr")
+    options = {
+        "radial_mode": "z",
+        "clinician": "Nicola Thibault, PhD.",
+        "notes": {"domains": ["Rendement attentionnel variable selon la "
+                              "condition de medication.", ""],
+                  "global": "Collaboration adequate aux deux temps."},
+        "lexicon": [{"term": "Soutenue",
+                     "definition": "Capacite a maintenir l'attention sur "
+                                   "une tache pendant une periode prolongee."}],
+    }
+    out = export_report(tempfile.mktemp(suffix=".docx"), [p1, p2],
+                        ["Sans médication", "Avec médication"], inputs,
+                        draft, "DEMO-01", "fr", options)
     print("Wrote", out)

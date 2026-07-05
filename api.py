@@ -19,6 +19,7 @@ import sys
 from typing import Optional
 
 import engine
+import lexicon
 import plots
 import report
 
@@ -66,8 +67,11 @@ class Api:
     def __init__(self) -> None:
         self._window = None
         # Cache of the most recent computation (single open window).
-        self._profile: Optional[engine.ProfileResult] = None
-        self._inputs: list[list[dict]] = []
+        # One engine profile per data series (test-retest support).
+        self._profiles: list[engine.ProfileResult] = []
+        self._series_labels: list[str] = []
+        # inputs_aligned[domain][measure][series] -> {value, metric} | None
+        self._inputs: list[list[list[Optional[dict]]]] = []
         self._patient_id: str = ""
 
     # -- wiring ------------------------------------------------
@@ -131,6 +135,10 @@ class Api:
         return {"ok": True, "themes": plots.theme_list(),
                 "default": plots.DEFAULT_THEME}
 
+    def get_lexicon(self) -> dict:
+        """Return the built-in bilingual lexicon of cognitive functions."""
+        return {"ok": True, "terms": lexicon.all_terms()}
+
     def load_template(self) -> dict:
         """Open a JSON template chosen by the user."""
         path = self._open_dialog(("JSON (*.json)", "All files (*.*)"))
@@ -173,111 +181,192 @@ class Api:
         return float(text.replace(",", "."))  # accept comma decimals
 
     def compute(self, payload: dict) -> dict:
-        """Convert the entered battery, classify and flag, then return a
-        JSON-serializable result for the table and store the engine
-        result for plotting and export."""
+        """Convert the entered battery (one or two data series), classify
+        and flag each series independently, and return a JSON-serializable
+        result aligned per measure and per series for the table. The
+        engine results are cached for plotting and export.
+
+        payload.series_labels names the series; each measure carries
+        values[si] = {"value", "metric"} aligned with those labels. The
+        legacy single-series shape (measure.value / measure.metric) is
+        also accepted.
+        """
         try:
             patient_id = str(payload.get("patient_id", "")).strip()
             threshold = float(payload.get("threshold", engine.DEFAULT_FLAG_THRESHOLD))
+            labels = [str(x).strip() or f"S{i + 1}" for i, x in
+                      enumerate(payload.get("series_labels") or ["S1"])][:2]
+            nser = len(labels)
 
-            domain_inputs: list[engine.DomainInput] = []
-            inputs_aligned: list[list[dict]] = []
-
+            # Parse every cell first: parsed[di][mi][si] -> float | None,
+            # echo[di][mi][si] -> {"value","metric"} | None.
+            parsed: list[list[list[Optional[float]]]] = []
+            echo: list[list[list[Optional[dict]]]] = []
             for dom in payload.get("domains", []):
-                measures: list[engine.MeasureInput] = []
-                aligned: list[dict] = []
+                dp, de = [], []
                 for m in dom.get("measures", []):
-                    metric = str(m.get("metric", "scaled")).lower()
-                    if metric not in engine.SUPPORTED_METRICS:
-                        return {"ok": False,
-                                "error": f"Unsupported metric '{metric}'."}
-                    try:
-                        value = self._parse_value(m.get("value"))
-                    except ValueError:
-                        name = m.get("name_fr") or m.get("name_en") or "?"
-                        return {"ok": False,
-                                "error": f"Non-numeric value for '{name}'."}
-                    if value is None:
-                        continue  # not administered, skipped (never imputed)
-                    measures.append(engine.MeasureInput(
-                        name_fr=m.get("name_fr", ""), name_en=m.get("name_en", ""),
-                        value=value, metric=metric))
-                    aligned.append({"value": str(m.get("value")).strip(),
-                                    "metric": metric})
-                domain_inputs.append(engine.DomainInput(
-                    name_fr=dom.get("name_fr", ""), name_en=dom.get("name_en", ""),
-                    measures=measures))
-                inputs_aligned.append(aligned)
+                    cells = m.get("values")
+                    if cells is None:  # legacy single-series shape
+                        cells = [{"value": m.get("value"),
+                                  "metric": m.get("metric", "scaled")}]
+                    mp, me = [], []
+                    for si in range(nser):
+                        cell = cells[si] if si < len(cells) else {}
+                        metric = str((cell or {}).get("metric", "scaled")).lower()
+                        if metric not in engine.SUPPORTED_METRICS:
+                            return {"ok": False,
+                                    "error": f"Unsupported metric '{metric}'."}
+                        try:
+                            value = self._parse_value((cell or {}).get("value"))
+                        except ValueError:
+                            name = m.get("name_fr") or m.get("name_en") or "?"
+                            return {"ok": False,
+                                    "error": f"Non-numeric value for '{name}'."}
+                        mp.append(value)
+                        me.append(None if value is None else
+                                  {"value": str(cell.get("value")).strip(),
+                                   "metric": metric})
+                    dp.append(mp)
+                    de.append(me)
+                parsed.append(dp)
+                echo.append(de)
 
-            result = engine.process_profile(domain_inputs, patient_id, threshold)
+            # Drop trailing series with no data at all (a second series
+            # left entirely blank behaves as a single-series profile).
+            used = nser
+            while used > 1 and not any(mp[used - 1] is not None
+                                       for dp in parsed for mp in dp):
+                used -= 1
+            labels = labels[:used]
 
-            # Cache for plotting and export.
-            self._profile = result
-            self._inputs = inputs_aligned
+            # One engine pass per series (the engine is untouched; each
+            # series gets its own personal mean and descriptive flags).
+            profiles: list[engine.ProfileResult] = []
+            for si in range(used):
+                domain_inputs = []
+                for di, dom in enumerate(payload.get("domains", [])):
+                    measures = []
+                    for mi, m in enumerate(dom.get("measures", [])):
+                        value = parsed[di][mi][si]
+                        if value is None:
+                            continue  # not administered, never imputed
+                        measures.append(engine.MeasureInput(
+                            name_fr=m.get("name_fr", ""),
+                            name_en=m.get("name_en", ""),
+                            value=value,
+                            metric=echo[di][mi][si]["metric"]))
+                    domain_inputs.append(engine.DomainInput(
+                        name_fr=dom.get("name_fr", ""),
+                        name_en=dom.get("name_en", ""),
+                        measures=measures))
+                profiles.append(engine.process_profile(domain_inputs,
+                                                       patient_id, threshold))
+
+            self._profiles = profiles
+            self._series_labels = labels
+            self._inputs = [[[me[si] for si in range(used)] for me in de]
+                            for de in echo]
             self._patient_id = patient_id
 
-            return {"ok": True, "result": self._serialize(result, inputs_aligned)}
+            return {"ok": True,
+                    "result": self._serialize(payload, profiles, labels,
+                                              parsed, echo)}
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "error": str(exc)}
 
     @staticmethod
-    def _serialize(result: engine.ProfileResult,
-                   inputs: list[list[dict]]) -> dict:
-        """Turn the engine result into a JSON-serializable dict, echoing
-        the raw value+metric so the table can show the score as entered."""
+    def _serialize(payload: dict, profiles: list[engine.ProfileResult],
+                   labels: list[str],
+                   parsed: list, echo: list) -> dict:
+        """Aligned, JSON-serializable result: every payload measure keeps
+        one slot per series (None when not administered in that series)."""
+        used = len(labels)
+        # Per-series cursors into the engine results (which keep only the
+        # administered measures, in payload order).
+        cursors = [[0] * len(profiles[si].domains) for si in range(used)]
+
         domains = []
-        for di, d in enumerate(result.domains):
+        for di, dom in enumerate(payload.get("domains", [])):
             measures = []
-            for mi, m in enumerate(d.measures):
-                raw = inputs[di][mi] if di < len(inputs) and mi < len(inputs[di]) else {}
-                measures.append({
-                    "name_fr": m.name_fr, "name_en": m.name_en,
-                    "value": raw.get("value", ""), "metric": raw.get("metric", ""),
-                    "z": round(m.z, 4),
-                    "percentile": round(m.percentile, 2),
-                    "percentile_display": m.percentile_display,
-                    "band_fr": m.band_fr, "band_en": m.band_en,
-                    "band_index": plots.band_index(m.percentile),
-                    "flag": m.flag,
-                })
-            domains.append({
-                "name_fr": d.name_fr, "name_en": d.name_en,
-                "mean_z": None if d.mean_z is None else round(d.mean_z, 4),
-                "mean_percentile": (None if d.mean_percentile is None
-                                    else round(d.mean_percentile, 2)),
-                "mean_percentile_display": (None if d.mean_percentile is None
-                                            else engine.format_percentile(d.mean_percentile)),
-                "mean_band_index": (None if d.mean_percentile is None
-                                    else plots.band_index(d.mean_percentile)),
-                "measures": measures,
-            })
+            for mi, m in enumerate(dom.get("measures", [])):
+                per_series = []
+                for si in range(used):
+                    if parsed[di][mi][si] is None:
+                        per_series.append(None)
+                        continue
+                    r = profiles[si].domains[di].measures[cursors[si][di]]
+                    cursors[si][di] += 1
+                    per_series.append({
+                        "value": echo[di][mi][si]["value"],
+                        "metric": echo[di][mi][si]["metric"],
+                        "z": round(r.z, 4),
+                        "percentile": round(r.percentile, 2),
+                        "percentile_display": r.percentile_display,
+                        "band_fr": r.band_fr, "band_en": r.band_en,
+                        "band_index": plots.band_index(r.percentile),
+                        "flag": r.flag,
+                    })
+                measures.append({"name_fr": m.get("name_fr", ""),
+                                 "name_en": m.get("name_en", ""),
+                                 "series": per_series})
+            mean_per_series = []
+            for si in range(used):
+                d = profiles[si].domains[di]
+                if d.mean_percentile is None:
+                    mean_per_series.append(None)
+                else:
+                    band_fr, band_en = engine.classify_band(d.mean_percentile)
+                    mean_per_series.append({
+                        "z": round(d.mean_z, 4),
+                        "percentile": round(d.mean_percentile, 2),
+                        "percentile_display":
+                            engine.format_percentile(d.mean_percentile),
+                        "band_fr": band_fr, "band_en": band_en,
+                        "band_index": plots.band_index(d.mean_percentile),
+                    })
+            domains.append({"name_fr": dom.get("name_fr", ""),
+                            "name_en": dom.get("name_en", ""),
+                            "mean": mean_per_series,
+                            "measures": measures})
+
         return {
-            "patient_id": result.patient_id,
-            "threshold": result.threshold,
-            "personal_mean_z": (None if result.personal_mean_z is None
-                                else round(result.personal_mean_z, 4)),
+            "patient_id": profiles[0].patient_id,
+            "threshold": profiles[0].threshold,
+            "series_labels": labels,
+            "personal_mean_z": [
+                None if p.personal_mean_z is None
+                else round(p.personal_mean_z, 4) for p in profiles],
             "domains": domains,
         }
 
     def get_report_text(self, lang: str = "fr") -> dict:
-        """Return the draft interpretive paragraph for the cached result."""
-        if self._profile is None:
+        """Draft interpretive text for the cached result. With two series
+        the drafts are concatenated under their series labels."""
+        if not self._profiles:
             return {"ok": False, "error": "Nothing computed yet."}
         lang = "fr" if lang == "fr" else "en"
-        return {"ok": True,
-                "text": engine.generate_report_text(self._profile, lang)}
+        if len(self._profiles) == 1:
+            return {"ok": True,
+                    "text": engine.generate_report_text(self._profiles[0], lang)}
+        parts = []
+        for prof, lab in zip(self._profiles, self._series_labels):
+            parts.append(f"[{lab}]")
+            parts.append(engine.generate_report_text(prof, lang))
+            parts.append("")
+        return {"ok": True, "text": "\n".join(parts).strip()}
 
     # -- plots ------------------------------------------------
 
     def render_summary_plot(self, options: Optional[dict] = None) -> dict:
         """Render the cross-domain summary figure for display."""
-        if self._profile is None:
+        if not self._profiles:
             return {"ok": False, "error": "Nothing computed yet."}
         options = options or {}
         lang = "fr" if options.get("lang", "fr") == "fr" else "en"
         mode = options.get("radial_mode", "z")
         try:
-            fig, kind = plots.summary_figure(self._profile, lang, mode,
+            fig, kind = plots.summary_figure(self._profiles,
+                                             self._series_labels, lang, mode,
                                              theme=options.get("theme"))
             if fig is None:
                 return {"ok": False, "skip": True}
@@ -290,22 +379,21 @@ class Api:
 
     def render_domain_plot(self, domain_index: int,
                            options: Optional[dict] = None) -> dict:
-        """Render one domain radar for display. Domains with fewer than
-        three sub-functions carry no figure (skip)."""
-        if self._profile is None:
+        """Render one domain radar (all series overlaid). Domains with
+        fewer than three measured axes carry no figure (skip)."""
+        if not self._profiles:
             return {"ok": False, "error": "Nothing computed yet."}
         options = options or {}
         lang = "fr" if options.get("lang", "fr") == "fr" else "en"
         mode = options.get("radial_mode", "z")
         try:
-            domain = self._profile.domains[int(domain_index)]
-        except (IndexError, ValueError, TypeError):
+            di = int(domain_index)
+        except (ValueError, TypeError):
             return {"ok": False, "error": "Unknown domain index."}
-        if len(domain.measures) < 3:
-            return {"ok": False, "skip": True}
         try:
-            fig, kind = plots.domain_figure(domain, self._profile.personal_mean_z,
-                                            lang, mode, theme=options.get("theme"))
+            fig, kind = plots.domain_figure(self._profiles,
+                                            self._series_labels, di, lang,
+                                            mode, theme=options.get("theme"))
             if fig is None:
                 return {"ok": False, "skip": True}
             png = plots.fig_to_base64_png(fig, dpi=options.get("dpi", 200))
@@ -319,8 +407,14 @@ class Api:
 
     def export_docx(self, draft_text: str, lang: str = "fr",
                     options: Optional[dict] = None) -> dict:
-        """Build the full Word report and save it to a chosen path."""
-        if self._profile is None:
+        """Build the full Word report and save it to a chosen path.
+
+        options may carry: radial_mode, show_summary, theme, clinician,
+        notes ({"domains": [str per domain], "global": str}) and
+        lexicon (list of {"term", "definition"} already in the export
+        language, assembled by the UI from the checklist).
+        """
+        if not self._profiles:
             return {"ok": False, "error": "Nothing computed yet."}
         lang = "fr" if lang == "fr" else "en"
         options = options or {}
@@ -332,8 +426,9 @@ class Api:
         if not path.lower().endswith(".docx"):
             path += ".docx"
         try:
-            report.export_report(path, self._profile, self._inputs, draft_text,
-                                 self._patient_id, lang, options)
+            report.export_report(path, self._profiles, self._series_labels,
+                                 self._inputs, draft_text, self._patient_id,
+                                 lang, options)
             return {"ok": True, "path": path}
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "error": str(exc)}

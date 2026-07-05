@@ -37,7 +37,6 @@ import numpy as np                       # noqa: E402
 
 from engine import (                      # noqa: E402
     BANDS,
-    DomainResult,
     ProfileResult,
     _pctl_phrase,
     format_percentile,
@@ -114,6 +113,12 @@ DEFAULT_THEME = "teal"
 BAND_COLORS = THEMES[DEFAULT_THEME]["bands"]
 ACCENT = THEMES[DEFAULT_THEME]["accent"]
 ACCENT_DEEP = THEMES[DEFAULT_THEME]["accent_deep"]
+
+# Second series (test-retest overlay): a neutral dark slate with a dashed
+# line and square markers, so the two series stay distinguishable in any
+# theme, for colorblind readers and in grayscale printing.
+SERIES2_COLOR = "#4c5660"
+SERIES2_DASH = (0, (4, 2))
 # Dark neutral for text that must read on top of any band.
 INK = "#26343c"
 MUTED = "#5b676e"
@@ -224,11 +229,26 @@ def _pos_of_z(z: float, mode: str) -> float:
 
 # --- 2. Radar core -------------------------------------------
 
-def _draw_radar(ax, labels: list[str], z_values: list[float],
-                pctl_displays: list[str], personal_mean_z: Optional[float],
+def _series_style(index: int, accent: str, accent_deep: str) -> dict:
+    """Visual style for series index (0 = theme accent, 1 = slate dashed)."""
+    if index == 0:
+        return {"color": accent, "deep": accent_deep, "ls": "-",
+                "marker": "o", "fill": True}
+    return {"color": SERIES2_COLOR, "deep": SERIES2_COLOR, "ls": SERIES2_DASH,
+            "marker": "s", "fill": False}
+
+
+def _draw_radar(ax, labels: list[str], series: list[dict],
+                personal_mean_z: Optional[float],
                 lang: str = "fr", radial_mode: str = "z",
                 compact: bool = False, theme=None) -> None:
     """Draw a report-grade radar onto a provided polar Axes.
+
+    series is a list of dicts {"label", "z": [float|None per axis],
+    "disp": [str|None per axis]}; one entry per data series (a second
+    series overlays the first for test-retest comparison). A None value
+    means "not administered in this series": the vertex is skipped and
+    the polygon edge is broken there rather than interpolated.
 
     Sets no title and creates no figure, so the same drawing serves a
     full single figure and a small panel inside the composite page.
@@ -285,23 +305,44 @@ def _draw_radar(ax, labels: list[str], z_values: list[float],
     ax.plot(theta, np.full_like(theta, ref_pos - axis_min),
             color=GUIDE, lw=1.4, alpha=0.9, zorder=2)
 
-    # Faint ring at the patient's personal mean.
-    if personal_mean_z is not None:
+    # Faint ring at the patient's personal mean (single series only:
+    # with two overlaid series it would be ambiguous which mean it is).
+    if personal_mean_z is not None and len(series) == 1:
         mpos = _clamp(_pos_of_z(personal_mean_z, mode), axis_min, axis_max)
         ax.plot(theta, np.full_like(theta, mpos - axis_min),
                 color=accent, lw=1.1, ls=(0, (3, 3)), alpha=0.55, zorder=3)
 
-    # Patient polygon: subtle fill, white-haloed line, clean markers.
-    rvals = [_pos_of_z(z, mode) - axis_min for z in z_values]
-    ang_c = angles + [angles[0]]
-    r_c = rvals + [rvals[0]]
-    ax.fill(ang_c, r_c, color=accent, alpha=0.13, zorder=4)
-    ax.plot(ang_c, r_c, color=accent, lw=poly_lw, solid_joinstyle="round",
-            solid_capstyle="round", zorder=5,
-            path_effects=[pe.Stroke(linewidth=halo_lw, foreground="white"),
-                          pe.Normal()])
-    ax.scatter(angles, rvals, s=marker_s, color=accent, edgecolors="white",
-               linewidths=edge_lw, zorder=6)
+    # One polygon per series. Vertices missing in a series break the
+    # outline there (edges are drawn only between adjacent administered
+    # vertices); the translucent fill is drawn only for a complete
+    # first series, so nothing is visually interpolated.
+    for si, ser in enumerate(series):
+        st = _series_style(si, accent, accent_deep)
+        rv = [None if z is None else _pos_of_z(z, mode) - axis_min
+              for z in ser["z"]]
+        present = [i for i, r in enumerate(rv) if r is not None]
+        if not present:
+            continue
+        complete = len(present) == n
+        if complete and st["fill"] and n >= 3:
+            ax.fill(angles + [angles[0]], [rv[i] for i in range(n)] + [rv[0]],
+                    color=st["color"], alpha=0.13, zorder=4)
+        # Edges between adjacent administered vertices (wrap included).
+        for i in range(n):
+            j = (i + 1) % n
+            if n > 1 and rv[i] is not None and rv[j] is not None:
+                if n == 2 and i == 1:
+                    break  # avoid drawing the same edge twice
+                ax.plot([angles[i], angles[j]], [rv[i], rv[j]],
+                        color=st["color"], lw=poly_lw, ls=st["ls"],
+                        solid_joinstyle="round", solid_capstyle="round",
+                        zorder=5,
+                        path_effects=[pe.Stroke(linewidth=halo_lw,
+                                                foreground="white"),
+                                      pe.Normal()])
+        ax.scatter([angles[i] for i in present], [rv[i] for i in present],
+                   s=marker_s, color=st["color"], marker=st["marker"],
+                   edgecolors="white", linewidths=edge_lw, zorder=6)
 
     # Percentile labels for the rings, in subtle white pills (full only).
     if show_ring_labels:
@@ -312,15 +353,29 @@ def _draw_radar(ax, labels: list[str], z_values: list[float],
             ax.text(label_ang, pos - axis_min, str(p), fontsize=7.5, color=MUTED,
                     ha="center", va="center", zorder=7, bbox=ring_bbox)
 
-    # Percentile value at each vertex, in a crisp white pill.
-    vtx_bbox = dict(boxstyle="round,pad=0.26", fc="white", ec="#c6d1d6",
-                    lw=0.6, alpha=0.97)
-    for ang, r, disp in zip(angles, rvals, pctl_displays):
-        off = 0.1 * span
-        lr = r + off if (r + off) <= span * 0.965 else r - off
-        ax.text(ang, lr, disp, fontsize=vtx_fs, fontweight="bold",
-                color=accent_deep, ha="center", va="center", zorder=8,
-                bbox=vtx_bbox)
+    # Percentile value at each vertex, in a crisp white pill. With one
+    # series the pill sits outward of the point; with two, series 1 sits
+    # outward and series 2 inward so they never collide. In compact
+    # two-series panels the pills are dropped (markers plus the shared
+    # legend stay), keeping small panels readable.
+    if not (compact and len(series) > 1):
+        vtx_bbox = dict(boxstyle="round,pad=0.26", fc="white", ec="#c6d1d6",
+                        lw=0.6, alpha=0.97)
+        for si, ser in enumerate(series):
+            st = _series_style(si, accent, accent_deep)
+            fs = vtx_fs if len(series) == 1 else max(6.4, vtx_fs - 1.4)
+            for i, (z, disp) in enumerate(zip(ser["z"], ser["disp"])):
+                if z is None or disp is None:
+                    continue
+                r = _pos_of_z(z, mode) - axis_min
+                off = 0.1 * span
+                if si == 0:
+                    lr = r + off if (r + off) <= span * 0.965 else r - off
+                else:
+                    lr = r - off if (r - off) >= span * 0.04 else r + off
+                ax.text(angles[i], lr, disp, fontsize=fs, fontweight="bold",
+                        color=st["deep"], ha="center", va="center", zorder=8,
+                        bbox=vtx_bbox)
 
     # Sub-function names just outside the ring, aligned by direction.
     name_r = span * name_rf
@@ -333,9 +388,23 @@ def _draw_radar(ax, labels: list[str], z_values: list[float],
                 ha=ha, va=va, zorder=7, clip_on=False)
 
 
+def _series_legend_handles(series_labels: list[str], accent: str,
+                           accent_deep: str) -> list:
+    """Proxy line handles for the series legend."""
+    from matplotlib.lines import Line2D
+    handles = []
+    for si, lab in enumerate(series_labels):
+        st = _series_style(si, accent, accent_deep)
+        handles.append(Line2D([0], [0], color=st["color"], lw=2.0,
+                              ls=st["ls"], marker=st["marker"],
+                              markerfacecolor=st["color"],
+                              markeredgecolor="white", markersize=7,
+                              label=lab))
+    return handles
+
+
 def _radar_figure(labels: list[str],
-                  z_values: list[float],
-                  pctl_displays: list[str],
+                  series: list[dict],
                   personal_mean_z: Optional[float],
                   title: str,
                   lang: str = "fr",
@@ -343,11 +412,11 @@ def _radar_figure(labels: list[str],
                   subtitle: Optional[str] = None,
                   theme=None) -> plt.Figure:
     """Build a single, report-grade radar figure (on-screen and exports)."""
-    _bands, _accent, accent_deep = resolve_theme(theme)
+    _bands, accent, accent_deep = resolve_theme(theme)
     fig = plt.figure(figsize=(7.0, 7.3))
     ax = fig.add_subplot(111, projection="polar")
-    fig.subplots_adjust(top=0.80, bottom=0.05, left=0.08, right=0.92)
-    _draw_radar(ax, labels, z_values, pctl_displays, personal_mean_z,
+    fig.subplots_adjust(top=0.80, bottom=0.07, left=0.08, right=0.92)
+    _draw_radar(ax, labels, series, personal_mean_z,
                 lang, radial_mode, compact=False, theme=theme)
     # A clean, prominent title in the theme accent; muted subtitle beneath.
     fig.suptitle(title, y=0.972, fontsize=18, fontweight="bold",
@@ -355,107 +424,206 @@ def _radar_figure(labels: list[str],
     if subtitle:
         fig.text(0.5, 0.926, subtitle, ha="center", va="center",
                  fontsize=10.5, color=MUTED)
+    if len(series) > 1:
+        fig.legend(handles=_series_legend_handles(
+                       [s["label"] for s in series], accent, accent_deep),
+                   loc="lower center", ncol=len(series), frameon=False,
+                   fontsize=9.5, bbox_to_anchor=(0.5, 0.005))
     return fig
 
 
-# --- 4. Public figure builders -------------------------------
+# --- 4. Panel specs and public figure builders ----------------
 
-def domain_figure(domain: DomainResult,
-                  personal_mean_z: Optional[float] = None,
+def build_panels(profiles: list[ProfileResult],
+                 lang: str = "fr",
+                 show_summary: bool = True) -> list[dict]:
+    """Build radar panel specs from one profile per series.
+
+    Domains are aligned by index (every series comes from the same
+    battery). Within a domain, the axes are the union of the measures
+    administered in at least one series, in battery order; a series
+    missing a measure gets None at that axis. Panels need at least
+    three axes; smaller domains carry no figure (their scores stay in
+    the table).
+
+    Returns dicts: {"title", "labels", "series": [{"label","z","disp"}]}.
+    The series label is filled in by the caller (see figure builders).
+    """
+    if not profiles:
+        return []
+    panels: list[dict] = []
+
+    # Summary panel: each axis is a domain with data in >= 1 series.
+    if show_summary:
+        keys: list[tuple[str, str]] = []
+        for prof in profiles:
+            for d in prof.domains:
+                if d.mean_z is not None and (d.name_fr, d.name_en) not in keys:
+                    keys.append((d.name_fr, d.name_en))
+        if len(keys) >= 3:
+            sers = []
+            for prof in profiles:
+                by_key = {(d.name_fr, d.name_en): d for d in prof.domains}
+                zs, disp = [], []
+                for k in keys:
+                    d = by_key.get(k)
+                    if d is not None and d.mean_z is not None:
+                        zs.append(d.mean_z)
+                        disp.append(format_percentile(d.mean_percentile))
+                    else:
+                        zs.append(None)
+                        disp.append(None)
+                sers.append({"z": zs, "disp": disp})
+            labels = [k[0] if lang == "fr" else k[1] for k in keys]
+            title = "Synthèse" if lang == "fr" else "Summary"
+            panels.append({"title": title, "labels": labels, "series": sers})
+
+    # One panel per domain (aligned by index across series).
+    ndom = max(len(p.domains) for p in profiles)
+    for di in range(ndom):
+        variants = [p.domains[di] if di < len(p.domains) else None
+                    for p in profiles]
+        mkeys: list[tuple[str, str]] = []
+        for v in variants:
+            if v is None:
+                continue
+            for m in v.measures:
+                if (m.name_fr, m.name_en) not in mkeys:
+                    mkeys.append((m.name_fr, m.name_en))
+        if len(mkeys) < 3:
+            continue
+        sers = []
+        for v in variants:
+            by_key = {} if v is None else {(m.name_fr, m.name_en): m
+                                           for m in v.measures}
+            zs, disp = [], []
+            for k in mkeys:
+                m = by_key.get(k)
+                if m is not None:
+                    zs.append(m.z)
+                    disp.append(m.percentile_display)
+                else:
+                    zs.append(None)
+                    disp.append(None)
+            sers.append({"z": zs, "disp": disp})
+        first = next(v for v in variants if v is not None)
+        labels = [k[0] if lang == "fr" else k[1] for k in mkeys]
+        panels.append({"title": first.name(lang), "labels": labels,
+                       "series": sers, "domain_index": di})
+    return panels
+
+
+def _mean_subtitle(profiles: list[ProfileResult], series_labels: list[str],
+                   domain_index: Optional[int], lang: str) -> Optional[str]:
+    """Subtitle giving the domain (or overall) mean per series."""
+    parts = []
+    for prof, lab in zip(profiles, series_labels):
+        if domain_index is None:
+            mz = prof.personal_mean_z
+            pct = None if mz is None else z_to_percentile(mz)
+        else:
+            dom = (prof.domains[domain_index]
+                   if domain_index < len(prof.domains) else None)
+            pct = None if dom is None else dom.mean_percentile
+        if pct is None:
+            continue
+        phrase = _pctl_phrase(format_percentile(pct), lang)
+        parts.append(phrase if len(profiles) == 1 else f"{lab}: {phrase}")
+    if not parts:
+        return None
+    joined = ", ".join(parts)
+    if domain_index is None:
+        return (f"Moyenne globale : {joined}" if lang == "fr"
+                else f"Overall mean: {joined}")
+    return (f"Moyenne du domaine : {joined}" if lang == "fr"
+            else f"Domain mean: {joined}")
+
+
+def _attach_labels(panel: dict, series_labels: list[str]) -> list[dict]:
+    """Attach series labels to a panel's series dicts."""
+    out = []
+    for si, ser in enumerate(panel["series"]):
+        lab = series_labels[si] if si < len(series_labels) else f"S{si + 1}"
+        out.append({"label": lab, "z": ser["z"], "disp": ser["disp"]})
+    return out
+
+
+def domain_figure(profiles: list[ProfileResult],
+                  series_labels: list[str],
+                  domain_index: int,
                   lang: str = "fr",
                   radial_mode: str = "z",
                   theme=None) -> tuple[Optional[plt.Figure], str]:
-    """Return (figure, kind) for one domain.
-
-    A radar needs at least three sub-functions to be meaningful. With
-    fewer, no figure is produced (kind 'none'); the table still carries
-    those scores.
-    """
-    measures = domain.measures
-    if len(measures) < 3:
+    """Radar for one domain, overlaying every series. Returns
+    (figure, kind); kind 'none' when fewer than three axes have data."""
+    panels = build_panels(profiles, lang, show_summary=False)
+    panel = next((p for p in panels if p.get("domain_index") == domain_index),
+                 None)
+    if panel is None:
         return None, "none"
-    labels = [m.name(lang) for m in measures]
-    zs = [m.z for m in measures]
-    disp = [m.percentile_display for m in measures]
-    subtitle = None
-    if domain.mean_percentile is not None:
-        phrase = _pctl_phrase(format_percentile(domain.mean_percentile), lang)
-        subtitle = (f"Moyenne du domaine : {phrase}" if lang == "fr"
-                    else f"Domain mean: {phrase}")
-    fig = _radar_figure(labels, zs, disp, personal_mean_z,
-                        domain.name(lang), lang, radial_mode, subtitle, theme)
+    pmz = profiles[0].personal_mean_z if len(profiles) == 1 else None
+    subtitle = _mean_subtitle(profiles, series_labels, domain_index, lang)
+    fig = _radar_figure(panel["labels"], _attach_labels(panel, series_labels),
+                        pmz, panel["title"], lang, radial_mode, subtitle,
+                        theme)
     return fig, "radar"
 
 
-def summary_figure(profile: ProfileResult,
+def summary_figure(profiles: list[ProfileResult],
+                   series_labels: list[str],
                    lang: str = "fr",
                    radial_mode: str = "z",
                    theme=None) -> tuple[Optional[plt.Figure], str]:
-    """Return (figure, kind) for the cross-domain summary, using each
-    domain's mean. A radar needs at least three domains; with fewer, no
-    figure is produced (kind 'none')."""
-    doms = [d for d in profile.domains if d.mean_z is not None]
-    if len(doms) < 3:
+    """Cross-domain summary radar (domain means), overlaying series."""
+    panels = build_panels(profiles, lang, show_summary=True)
+    panel = next((p for p in panels if "domain_index" not in p), None)
+    if panel is None:
         return None, "none"
-    labels = [d.name(lang) for d in doms]
+    pmz = profiles[0].personal_mean_z if len(profiles) == 1 else None
     title = "Synthèse par domaine" if lang == "fr" else "Domain summary"
-    subtitle = None
-    if profile.personal_mean_z is not None:
-        phrase = _pctl_phrase(
-            format_percentile(z_to_percentile(profile.personal_mean_z)), lang)
-        subtitle = (f"Moyenne globale : {phrase}" if lang == "fr"
-                    else f"Overall mean: {phrase}")
-    zs = [d.mean_z for d in doms]
-    disp = [format_percentile(d.mean_percentile) for d in doms]
-    fig = _radar_figure(labels, zs, disp, profile.personal_mean_z,
-                        title, lang, radial_mode, subtitle, theme)
+    subtitle = _mean_subtitle(profiles, series_labels, None, lang)
+    fig = _radar_figure(panel["labels"], _attach_labels(panel, series_labels),
+                        pmz, title, lang, radial_mode, subtitle, theme)
     return fig, "radar"
 
 
-def composite_figure(profile: ProfileResult,
+def composite_figure(profiles: list[ProfileResult],
+                     series_labels: list[str],
                      lang: str = "fr",
                      radial_mode: str = "z",
                      show_summary: bool = True,
                      theme=None) -> plt.Figure:
-    """Lay every figure (summary first, then each domain) onto a single
-    page as a tidy grid, for the visual page of the Word report."""
-    pmz = profile.personal_mean_z
-
-    # Build the ordered list of radar panels (summary first, then each
-    # domain with at least three sub-functions). Smaller domains carry no
-    # figure; their scores remain in the table.
-    panels: list[dict] = []
-    sdoms = [d for d in profile.domains if d.mean_z is not None]
-    if show_summary and len(sdoms) >= 3:
-        panels.append({"title": "Synthèse" if lang == "fr" else "Summary",
-                       "labels": [d.name(lang) for d in sdoms],
-                       "z": [d.mean_z for d in sdoms],
-                       "disp": [format_percentile(d.mean_percentile) for d in sdoms]})
-    for d in profile.domains:
-        if len(d.measures) >= 3:
-            panels.append({"title": d.name(lang),
-                           "labels": [m.name(lang) for m in d.measures],
-                           "z": [m.z for m in d.measures],
-                           "disp": [m.percentile_display for m in d.measures]})
-
+    """Every radar (summary first, then domains) as one compact grid of
+    at most two rows, for the top of the Word report."""
+    panels = build_panels(profiles, lang, show_summary)
     npan = len(panels)
     if npan == 0:
-        return plt.figure(figsize=(7.2, 2.0))
+        return plt.figure(figsize=(7.2, 1.6))
 
-    _bands, _accent, accent_deep = resolve_theme(theme)
-    cols = 1 if npan == 1 else (2 if npan <= 6 else 3)
+    _bands, accent, accent_deep = resolve_theme(theme)
+    # Never more than two rows: grow columns instead.
+    cols = max(1, math.ceil(npan / 2))
     rows = math.ceil(npan / cols)
-    fig = plt.figure(figsize=(7.4, 0.3 + rows * 3.2))
+    multi = len(profiles) > 1
+    legend_pad = 0.5 if multi else 0.0
+    fig = plt.figure(figsize=(7.2, 0.3 + rows * 2.55 + legend_pad))
 
     for idx, panel in enumerate(panels):
         ax = fig.add_subplot(rows, cols, idx + 1, projection="polar")
-        _draw_radar(ax, panel["labels"], panel["z"], panel["disp"], pmz,
-                    lang, radial_mode, compact=True, theme=theme)
-        ax.set_title(panel["title"], fontsize=13, fontweight="bold",
-                     color=accent_deep, pad=11)
+        pmz = profiles[0].personal_mean_z if len(profiles) == 1 else None
+        _draw_radar(ax, panel["labels"], _attach_labels(panel, series_labels),
+                    pmz, lang, radial_mode, compact=True, theme=theme)
+        ax.set_title(panel["title"], fontsize=10.5, fontweight="bold",
+                     color=accent_deep, pad=9)
 
-    fig.subplots_adjust(top=0.955, bottom=0.035, left=0.05, right=0.95,
-                        hspace=0.46, wspace=0.28)
+    bottom = 0.10 if multi else 0.04
+    fig.subplots_adjust(top=0.94, bottom=bottom, left=0.05, right=0.95,
+                        hspace=0.50, wspace=0.30)
+    if multi:
+        fig.legend(handles=_series_legend_handles(series_labels, accent,
+                                                  accent_deep),
+                   loc="lower center", ncol=len(series_labels), frameon=False,
+                   fontsize=9)
     return fig
 
 
@@ -515,20 +683,23 @@ if __name__ == "__main__":
     ]
     result = process_profile(demo, "DEMO-01", 1.0)
 
-    fig_c = composite_figure(result, "fr")
+    # Single series composite.
+    fig_c = composite_figure([result], ["T1"], "fr")
     with open("smoke_composite.png", "wb") as fh:
         fh.write(fig_to_png_bytes(fig_c, dpi=150))
     close_fig(fig_c)
     print("composite written")
 
-    for idx, dom in enumerate(result.domains):
-        fig_d, kind_d = domain_figure(dom, result.personal_mean_z, "fr")
-        if fig_d is None:
-            print(f"domain {idx} ({dom.name_en}): {kind_d} (no figure)")
-            continue
-        with open(f"smoke_domain_{idx}.png", "wb") as fh:
-            fh.write(fig_to_png_bytes(fig_d, dpi=150))
-        close_fig(fig_d)
-        print(f"domain {idx} ({dom.name_en}): {kind_d}")
+    # Two-series overlay (second series slightly shifted, one gap).
+    demo2 = [DomainInput(d.name_fr, d.name_en, [
+        MeasureInput(m.name_fr, m.name_en, m.value, m.metric)
+        for m in d.measures[:-1]]) for d in demo]
+    result2 = process_profile(demo2, "DEMO-01", 1.0)
+    fig_o, kind_o = domain_figure([result, result2], ["T1", "T2"], 0, "fr")
+    if fig_o is not None:
+        with open("smoke_overlay.png", "wb") as fh:
+            fh.write(fig_to_png_bytes(fig_o, dpi=150))
+        close_fig(fig_o)
+    print("overlay:", kind_o)
 
     print("Smoke figures written.")

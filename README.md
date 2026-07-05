@@ -80,6 +80,31 @@ band cells and the legend together (and the Word export), and is saved
 with the session. All presets keep the colorblind-friendly,
 non-alarmist design (low scores stay the palest, never red).
 
+Additional clinical features:
+
+- **Two data series (test-retest).** "Add a series" in Data entry
+  creates a second value column (e.g. with / without medication, T1 /
+  T2). The two series overlay on the same radars (theme color and solid
+  circles vs slate dashed squares, readable in grayscale), the table
+  carries one row per series with per-series domain means, and the
+  draft text is generated per series. The engine is untouched: each
+  series gets its own independent pass and personal mean.
+- **Clinical notes.** A notes field under each domain in Results plus a
+  global note; they print in a "Clinical notes" section of the report
+  and are saved with the session.
+- **Lexicon.** Built-in bilingual definitions (written originally, in
+  generic clinical wording) are matched to the administered
+  sub-functions and offered as a checklist with editable text; a master
+  toggle removes the whole section. Checked entries print at the end of
+  the report.
+- **Clinician watermark.** The clinician name field (Data entry) prints
+  at the bottom left of every report page. Save it in your own battery
+  template once and it comes back on every launch; the shipped default
+  template leaves it empty so distributed copies stay neutral.
+- **Report layout.** The Word report shows all radars as one compact
+  grid (at most two rows) at the top, then the band legend, the
+  percentile table, notes, the interpretation and the lexicon.
+
 ## 5. Privacy model
 
 Patient data is PHI and never leaves the machine.

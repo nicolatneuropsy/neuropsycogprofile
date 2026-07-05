@@ -11,11 +11,8 @@
   <!-- Persistent header: app name, threshold control, language toggle. -->
   <header class="app-header">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <div>
-        <h1 id="app-title">NeuroCogProfile</h1>
-        <p id="app-tagline" class="tagline"></p>
-      </div>
+      <h1 id="app-title">NeuroCogProfile</h1>
+      <p id="app-tagline" class="tagline"></p>
     </div>
     <div class="header-controls">
       <label class="threshold-control">
@@ -70,11 +67,18 @@
           <button type="button" id="btn-save-session" class="btn"></button>
         </div>
       </div>
-      <div class="patient-row">
-        <label id="pid-label" for="patient-id"></label>
-        <input type="text" id="patient-id" autocomplete="off" spellcheck="false">
+      <div class="ident-grid">
+        <div class="ident-field">
+          <label id="pid-label" for="patient-id"></label>
+          <input type="text" id="patient-id" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="ident-field">
+          <label id="clinician-label" for="clinician-input"></label>
+          <input type="text" id="clinician-input" autocomplete="off" spellcheck="false">
+        </div>
       </div>
       <p id="pid-warning" class="warning"></p>
+      <div id="series-bar" class="series-bar"></div>
       <div id="entry-grid"></div>
       <div class="entry-foot">
         <button type="button" id="btn-compute" class="btn primary large"></button>
@@ -106,7 +110,21 @@
       <div id="band-legend" class="legend"></div>
       <div id="results-tables"></div>
       <div id="results-plots"></div>
-      <div class="draft-block">
+      <div id="lexicon-panel" class="panel">
+        <div class="panel-head">
+          <label class="check">
+            <input type="checkbox" id="lexicon-toggle" checked>
+            <strong id="lexicon-title"></strong>
+          </label>
+          <span id="lexicon-help" class="muted"></span>
+        </div>
+        <div id="lexicon-items"></div>
+      </div>
+      <div class="note-global panel">
+        <h3 id="global-note-title"></h3>
+        <textarea id="global-note" rows="3" spellcheck="false"></textarea>
+      </div>
+      <div class="draft-block panel">
         <h3 id="draft-title"></h3>
         <textarea id="draft-text" rows="9" spellcheck="false"></textarea>
       </div>

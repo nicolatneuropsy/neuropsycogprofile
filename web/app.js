@@ -5,6 +5,16 @@
    bilingual via the T dictionary; the generated draft text is bilingual
    via the engine. Nothing is persisted unless the user explicitly saves
    a template or a session through a native file dialog.
+
+   Data model notes:
+   - Up to two data series (test-retest, with/without medication...):
+     state.seriesLabels holds the labels, and every measure carries
+     entries[si] = {value, metric} aligned with them.
+   - Each domain carries an optional clinical note; a global note and
+     the clinician name (report watermark) live at the top level.
+   - The lexicon checklist matches administered sub-functions against
+     the built-in bilingual definitions; each entry is editable and
+     can be unchecked, and the whole section can be disabled.
    ============================================================ */
 
 "use strict";
@@ -15,9 +25,9 @@ const T = {
   fr: {
     tagline: "Profil cognitif local et hors ligne",
     threshold_label: "Seuil force / faiblesse",
-    tab_battery: "Batterie", tab_entry: "Saisie", tab_results: "Résultats",
+    tab_battery: "Batterie", tab_entry: "Saisie", tab_results: "Resultats",
     battery_title: "Composition de la batterie",
-    battery_help: "Ajoutez, renommez et réordonnez les domaines et les sous-fonctions. Chaque nom possede une etiquette FR et EN; la langue affichee suit le bouton FR / EN.",
+    battery_help: "Ajoutez, renommez et reordonnez les domaines et les sous-fonctions. Chaque nom possede une etiquette FR et EN; la langue affichee suit le bouton FR / EN.",
     load_template: "Charger un modele", save_template: "Enregistrer le modele",
     add_domain: "+ Ajouter un domaine", addon_label: "Domaines optionnels",
     add_addon: "Inserer", add_measure: "+ Sous-fonction",
@@ -25,16 +35,29 @@ const T = {
     entry_title: "Saisie des scores",
     load_session: "Charger une session", save_session: "Enregistrer la session",
     pid_label: "Identifiant", pid_ph: "ex. AB-001",
-    pid_warning: "N'inscrivez pas le nom complet ni d'autres renseignements identifiants. Rien n'est enregistre tant que vous n'enregistrez pas explicitement une session.",
+    clinician_label: "Clinicien(ne)", clinician_ph: "ex. Nicola Thibault, PhD.",
+    pid_warning: "N'inscrivez pas le nom complet ni d'autres renseignements identifiants. Rien n'est enregistre tant que vous n'enregistrez pas explicitement une session. Le nom du clinicien apparait en bas du rapport.",
+    series_title: "Series",
+    series_add: "+ Ajouter une serie (retest)",
+    series_remove: "Retirer la serie 2",
+    series_help: "Deux series se superposent sur les memes graphiques (ex. avec / sans medication).",
+    series_t1: "T1", series_t2: "T2",
     col_measure: "Sous-fonction", col_value: "Score", col_metric: "Type",
     compute: "Calculer le profil",
     results_title: "Profil et figures",
     mode_z: "Echelle z", mode_pct: "Percentile", summary_toggle: "Radar de synthese",
     copy_table: "Copier le tableau", export: "Exporter vers Word (.docx)",
     results_empty: "Aucun resultat. Saisissez des scores puis cliquez sur Calculer le profil.",
+    col_series: "Serie",
     col_score: "Score saisi", col_pct: "Percentile", col_band: "Bande", col_marker: "Marqueur",
     domain_mean: "Moyenne du domaine",
     strength: "Force relative", weakness: "Faiblesse relative", within: "Dans la moyenne",
+    note_label: "Notes cliniques (domaine)",
+    note_ph: "Observations, justification des resultats...",
+    global_note_title: "Note generale (facultative)",
+    lexicon_title: "Lexique des fonctions evaluees",
+    lexicon_help: "Cochez les definitions a inclure dans le rapport; le texte est modifiable.",
+    lexicon_empty: "Aucune definition integree ne correspond aux fonctions administrees.",
     draft_title: "Texte interpretatif (brouillon, modifiable)",
     copy_image: "Copier l'image", download_svg: "SVG", theme_label: "Theme de couleur",
     saved_template: "Modele enregistre", loaded_template: "Modele charge",
@@ -42,7 +65,7 @@ const T = {
     exported: "Rapport Word enregistre", copied_image: "Image copiee",
     copied_table: "Tableau copie", copy_failed: "Copie impossible dans cet environnement",
     compute_error: "Erreur de calcul", load_error: "Echec du chargement",
-    no_admin: "Aucune mesure administree.", confirm_del: "Supprimer ce domaine et ses donnees saisies ?",
+    confirm_del: "Supprimer ce domaine et ses donnees saisies ?",
   },
   en: {
     tagline: "Local, offline cognitive profile",
@@ -57,16 +80,29 @@ const T = {
     entry_title: "Score entry",
     load_session: "Load session", save_session: "Save session",
     pid_label: "Identifier", pid_ph: "e.g. AB-001",
-    pid_warning: "Do not enter the full name or other identifying information. Nothing is saved unless you explicitly save a session.",
+    clinician_label: "Clinician", clinician_ph: "e.g. Nicola Thibault, PhD.",
+    pid_warning: "Do not enter the full name or other identifying information. Nothing is saved unless you explicitly save a session. The clinician name appears at the bottom of the report.",
+    series_title: "Series",
+    series_add: "+ Add a series (retest)",
+    series_remove: "Remove series 2",
+    series_help: "Two series overlay on the same figures (e.g. with / without medication).",
+    series_t1: "T1", series_t2: "T2",
     col_measure: "Sub-function", col_value: "Score", col_metric: "Metric",
     compute: "Compute profile",
     results_title: "Profile and figures",
     mode_z: "z scale", mode_pct: "Percentile", summary_toggle: "Summary radar",
     copy_table: "Copy table", export: "Export to Word (.docx)",
     results_empty: "No results yet. Enter scores then click Compute profile.",
+    col_series: "Series",
     col_score: "Entered score", col_pct: "Percentile", col_band: "Band", col_marker: "Marker",
     domain_mean: "Domain mean",
     strength: "Relative strength", weakness: "Relative weakness", within: "Within average",
+    note_label: "Clinical notes (domain)",
+    note_ph: "Observations, rationale for the results...",
+    global_note_title: "General note (optional)",
+    lexicon_title: "Lexicon of assessed functions",
+    lexicon_help: "Check the definitions to include in the report; the text is editable.",
+    lexicon_empty: "No built-in definition matches the administered functions.",
     draft_title: "Interpretive text (draft, editable)",
     copy_image: "Copy image", download_svg: "SVG", theme_label: "Color theme",
     saved_template: "Template saved", loaded_template: "Template loaded",
@@ -74,7 +110,7 @@ const T = {
     exported: "Word report saved", copied_image: "Image copied",
     copied_table: "Table copied", copy_failed: "Clipboard not available in this environment",
     compute_error: "Compute error", load_error: "Load failed",
-    no_admin: "No measure administered.", confirm_del: "Delete this domain and its entered data?",
+    confirm_del: "Delete this domain and its entered data?",
   },
 };
 
@@ -86,18 +122,24 @@ const METRICS = [
   { v: "t", fr: "T", en: "T" },
 ];
 
+const MAX_SERIES = 2;
+
 /* ---------- 1. State ---------------------------------------- */
 
 const state = {
   lang: "fr",
   threshold: 1.0,
   patientId: "",
+  clinician: "",
+  seriesLabels: ["T1"],
   battery: { name: "Default battery", domains: [] },
+  globalNote: "",
   result: null,
   palette: null,
   addons: [],
   theme: "teal",
   themes: [],
+  lex: { enabled: true, terms: [], checks: {}, edits: {} },
   options: { radialMode: "z", showSummary: true },
 };
 
@@ -112,7 +154,6 @@ function el(tag, props = {}, children = []) {
   for (const [k, v] of Object.entries(props)) {
     if (k === "class") node.className = v;
     else if (k === "text") node.textContent = v;
-    else if (k === "html") node.innerHTML = v;
     else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2), v);
     else if (v !== null && v !== undefined) node.setAttribute(k, v);
   }
@@ -126,6 +167,10 @@ function el(tag, props = {}, children = []) {
 function nameOf(obj) { return state.lang === "fr" ? (obj.name_fr || "") : (obj.name_en || ""); }
 function setName(obj, value) { if (state.lang === "fr") obj.name_fr = value; else obj.name_en = value; }
 function metricLabel(v) { const m = METRICS.find((x) => x.v === v); return m ? m[state.lang] : v; }
+function normName(s) {
+  return String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().trim().replace(/\s+/g, " ");
+}
 
 let toastTimer = null;
 function toast(msg) {
@@ -138,9 +183,7 @@ function toast(msg) {
 
 /* Runs cb once the pywebview bridge can actually round-trip a call.
    The window.pywebview.api object can appear before its calls resolve,
-   so we do not trust its mere existence: we poll ping() (with a short
-   per-attempt timeout) until it truly answers, then run cb once. This is
-   robust to pywebviewready event-timing differences across backends. */
+   so we poll ping() until it truly answers. */
 async function whenReady(cb) {
   for (let i = 0; i < 250; i++) {
     if (window.pywebview && window.pywebview.api && window.pywebview.api.ping) {
@@ -150,11 +193,11 @@ async function whenReady(cb) {
           new Promise((res) => setTimeout(() => res(null), 250)),
         ]);
         if (r && r.ok) { cb(); return; }
-      } catch (e) { /* bridge not answering yet, keep waiting */ }
+      } catch (e) { /* bridge not answering yet */ }
     }
     await new Promise((res) => setTimeout(res, 80));
   }
-  cb();  // last-ditch attempt so the UI is never permanently blank
+  cb();
 }
 
 const api = new Proxy({}, {
@@ -168,21 +211,39 @@ const api = new Proxy({}, {
 
 /* ---------- 3. Battery normalisation ------------------------ */
 
-function normaliseBattery(tpl) {
-  // Ensure every measure carries an entry value+metric for the grid.
+function blankEntry() { return { value: "", metric: "scaled" }; }
+
+function normaliseBattery(tpl, nSeries) {
+  // Ensure every measure carries one {value, metric} entry per series.
+  // Accepts the template shape (no values), the legacy session shape
+  // (measure.value/metric) and the current one (measure.values array).
+  const n = Math.max(1, Math.min(MAX_SERIES, nSeries || 1));
   const domains = (tpl.domains || []).map((d) => ({
     name_fr: d.name_fr || "", name_en: d.name_en || "",
-    measures: (d.measures || []).map((m) => ({
-      name_fr: m.name_fr || "", name_en: m.name_en || "",
-      value: m.value !== undefined && m.value !== null ? String(m.value) : "",
-      metric: m.metric ? String(m.metric).toLowerCase() : "scaled",
-    })),
+    note: typeof d.note === "string" ? d.note : "",
+    measures: (d.measures || []).map((m) => {
+      let entries = [];
+      if (Array.isArray(m.values)) {
+        entries = m.values.map((v) => ({
+          value: v && v.value !== undefined && v.value !== null ? String(v.value) : "",
+          metric: v && v.metric ? String(v.metric).toLowerCase() : "scaled",
+        }));
+      } else if (m.value !== undefined || m.metric !== undefined) {
+        entries = [{
+          value: m.value !== undefined && m.value !== null ? String(m.value) : "",
+          metric: m.metric ? String(m.metric).toLowerCase() : "scaled",
+        }];
+      }
+      while (entries.length < n) entries.push(blankEntry());
+      return { name_fr: m.name_fr || "", name_en: m.name_en || "",
+               entries: entries.slice(0, n) };
+    }),
   }));
   return { name: tpl.name || "Battery", domains };
 }
 
 function batteryToTemplate() {
-  return {
+  const tpl = {
     name: state.battery.name || "Custom battery",
     threshold_sd: state.threshold,
     domains: state.battery.domains.map((d) => ({
@@ -190,6 +251,13 @@ function batteryToTemplate() {
       measures: d.measures.map((m) => ({ name_fr: m.name_fr, name_en: m.name_en })),
     })),
   };
+  if (state.clinician.trim()) tpl.clinician = state.clinician.trim();
+  return tpl;
+}
+
+function lexiconState() {
+  const unchecked = Object.keys(state.lex.checks).filter((k) => state.lex.checks[k] === false);
+  return { enabled: state.lex.enabled, unchecked, edits: state.lex.edits };
 }
 
 function batteryToSession() {
@@ -197,12 +265,17 @@ function batteryToSession() {
     name: state.battery.name || "Custom battery",
     threshold_sd: state.threshold,
     patient_id: state.patientId,
+    clinician: state.clinician,
     language: state.lang,
     theme: state.theme,
+    series_labels: state.seriesLabels.slice(),
+    global_note: state.globalNote,
+    lexicon: lexiconState(),
     domains: state.battery.domains.map((d) => ({
-      name_fr: d.name_fr, name_en: d.name_en,
+      name_fr: d.name_fr, name_en: d.name_en, note: d.note || "",
       measures: d.measures.map((m) => ({
-        name_fr: m.name_fr, name_en: m.name_en, value: m.value, metric: m.metric,
+        name_fr: m.name_fr, name_en: m.name_en,
+        values: m.entries.map((e) => ({ value: e.value, metric: e.metric })),
       })),
     })),
   };
@@ -230,6 +303,8 @@ function applyStaticStrings() {
   $("#btn-save-session").textContent = t("save_session");
   $("#pid-label").textContent = t("pid_label");
   $("#patient-id").placeholder = t("pid_ph");
+  $("#clinician-label").textContent = t("clinician_label");
+  $("#clinician-input").placeholder = t("clinician_ph");
   $("#pid-warning").textContent = t("pid_warning");
   $("#btn-compute").textContent = t("compute");
 
@@ -240,8 +315,11 @@ function applyStaticStrings() {
   $("#btn-copy-table").textContent = t("copy_table");
   $("#btn-export").textContent = t("export");
   $("#results-empty").textContent = t("results_empty");
-  $("#draft-title").textContent = t("draft_title");
   $("#theme-label").textContent = t("theme_label");
+  $("#lexicon-title").textContent = t("lexicon_title");
+  $("#lexicon-help").textContent = t("lexicon_help");
+  $("#global-note-title").textContent = t("global_note_title");
+  $("#draft-title").textContent = t("draft_title");
 }
 
 function switchView(name) {
@@ -268,8 +346,7 @@ function renderBattery() {
 }
 
 // Any change to the battery STRUCTURE must also refresh the data-entry
-// grid so the two views never drift out of sync (for example, deleting a
-// domain in Battery must also remove it from Saisie).
+// grid so the two views never drift out of sync.
 function syncBattery() {
   renderBattery();
   renderEntry();
@@ -296,7 +373,10 @@ function domainCard(dom, di) {
   card.appendChild(el("button", {
     class: "btn tiny measure-add", text: t("add_measure"),
     onclick: () => {
-      dom.measures.push({ name_fr: t("new_measure"), name_en: T.en.new_measure, value: "", metric: "scaled" });
+      dom.measures.push({
+        name_fr: t("new_measure"), name_en: T.en.new_measure,
+        entries: state.seriesLabels.map(() => blankEntry()),
+      });
       syncBattery();
     },
   }));
@@ -323,35 +403,90 @@ function populateAddons() {
   state.addons.forEach((d, i) => sel.appendChild(el("option", { value: String(i), text: nameOf(d) })));
 }
 
-/* ---------- 6. Data entry view ------------------------------ */
+/* ---------- 6. Series management ----------------------------- */
+
+function addSeries() {
+  if (state.seriesLabels.length >= MAX_SERIES) return;
+  state.seriesLabels.push(t("series_t2"));
+  state.battery.domains.forEach((d) => d.measures.forEach((m) => {
+    while (m.entries.length < state.seriesLabels.length) {
+      m.entries.push({ value: "", metric: m.entries[0] ? m.entries[0].metric : "scaled" });
+    }
+  }));
+  renderEntry();
+}
+
+function removeSeries() {
+  if (state.seriesLabels.length <= 1) return;
+  state.seriesLabels.pop();
+  state.battery.domains.forEach((d) => d.measures.forEach((m) => {
+    m.entries = m.entries.slice(0, state.seriesLabels.length);
+  }));
+  renderEntry();
+}
+
+function renderSeriesBar() {
+  const bar = $("#series-bar");
+  bar.innerHTML = "";
+  bar.appendChild(el("span", { class: "series-title", text: t("series_title") }));
+  state.seriesLabels.forEach((lab, si) => {
+    bar.appendChild(el("span", { class: "series-tag s" + (si + 1) }));
+    bar.appendChild(el("input", {
+      type: "text", value: lab,
+      oninput: (e) => { state.seriesLabels[si] = e.target.value; },
+    }));
+  });
+  if (state.seriesLabels.length < MAX_SERIES) {
+    bar.appendChild(el("button", { class: "btn tiny", text: t("series_add"), onclick: addSeries }));
+  } else {
+    bar.appendChild(el("button", { class: "btn tiny", text: t("series_remove"), onclick: removeSeries }));
+  }
+  bar.appendChild(el("span", { class: "muted", text: t("series_help") }));
+}
+
+/* ---------- 7. Data entry view ------------------------------ */
+
+function metricSelect(entry) {
+  const select = el("select", { onchange: (e) => { entry.metric = e.target.value; } });
+  METRICS.forEach((opt) => {
+    const o = el("option", { value: opt.v, text: opt[state.lang] });
+    if (opt.v === entry.metric) o.selected = true;
+    select.appendChild(o);
+  });
+  return select;
+}
 
 function renderEntry() {
   $("#patient-id").value = state.patientId;
+  $("#clinician-input").value = state.clinician;
+  renderSeriesBar();
+
   const grid = $("#entry-grid");
   grid.innerHTML = "";
+  const nser = state.seriesLabels.length;
 
   state.battery.domains.forEach((dom) => {
     const table = el("table", { class: "entry-table" });
-    table.appendChild(el("tr", {}, [
-      el("th", { text: t("col_measure") }),
-      el("th", { text: t("col_value") }),
-      el("th", { text: t("col_metric") }),
-    ]));
+    const head = [el("th", { text: t("col_measure") })];
+    for (let si = 0; si < nser; si++) {
+      const tag = nser > 1 ? state.seriesLabels[si] + " · " : "";
+      head.push(el("th", { text: tag + t("col_value") }));
+      head.push(el("th", { text: t("col_metric") }));
+    }
+    table.appendChild(el("tr", {}, head));
+
     dom.measures.forEach((m) => {
-      const select = el("select", { onchange: (e) => { m.metric = e.target.value; } });
-      METRICS.forEach((opt) => {
-        const o = el("option", { value: opt.v, text: opt[state.lang] });
-        if (opt.v === m.metric) o.selected = true;
-        select.appendChild(o);
-      });
-      table.appendChild(el("tr", {}, [
-        el("td", { class: "name", text: nameOf(m) }),
-        el("td", {}, [el("input", {
-          type: "text", inputmode: "decimal", value: m.value,
-          oninput: (e) => { m.value = e.target.value; },
-        })]),
-        el("td", {}, [select]),
-      ]));
+      while (m.entries.length < nser) m.entries.push(blankEntry());
+      const cells = [el("td", { class: "name", text: nameOf(m) })];
+      for (let si = 0; si < nser; si++) {
+        const entry = m.entries[si];
+        cells.push(el("td", {}, [el("input", {
+          type: "text", inputmode: "decimal", value: entry.value,
+          oninput: (e) => { entry.value = e.target.value; },
+        })]));
+        cells.push(el("td", {}, [metricSelect(entry)]));
+      }
+      table.appendChild(el("tr", {}, cells));
     });
     grid.appendChild(el("div", { class: "card" }, [el("h3", { text: nameOf(dom) }), table]));
   });
@@ -361,10 +496,12 @@ function buildPayload() {
   return {
     patient_id: state.patientId,
     threshold: state.threshold,
+    series_labels: state.seriesLabels.slice(),
     domains: state.battery.domains.map((d) => ({
       name_fr: d.name_fr, name_en: d.name_en,
       measures: d.measures.map((m) => ({
-        name_fr: m.name_fr, name_en: m.name_en, value: m.value, metric: m.metric,
+        name_fr: m.name_fr, name_en: m.name_en,
+        values: m.entries.map((e) => ({ value: e.value, metric: e.metric })),
       })),
     })),
   };
@@ -372,6 +509,7 @@ function buildPayload() {
 
 async function onCompute() {
   state.patientId = $("#patient-id").value.trim();
+  state.clinician = $("#clinician-input").value.trim();
   const res = await api.compute(buildPayload());
   if (!res.ok) { toast(t("compute_error") + (res.error ? ": " + res.error : "")); return; }
   state.result = res.result;
@@ -379,7 +517,7 @@ async function onCompute() {
   await renderResults();
 }
 
-/* ---------- 7. Results view --------------------------------- */
+/* ---------- 8. Results view --------------------------------- */
 
 function renderThemeChips() {
   const box = $("#theme-chips");
@@ -433,16 +571,36 @@ function markCell(flag) {
 }
 
 function bandColor(idx) {
-  return state.palette ? state.palette.bands[idx] : "#eef3f5";
+  return state.palette ? state.palette.bands[idx] : "#eef4f5";
+}
+
+// Rows of the results table for one domain, aligned per series.
+function domainTableRows(dom) {
+  const multi = (state.result.series_labels || []).length > 1;
+  const rows = [];
+  dom.measures.forEach((m) => {
+    let first = true;
+    (m.series || []).forEach((cell, si) => {
+      if (!cell) return;
+      rows.push({ kind: "measure", m, cell, si, showName: first, multi });
+      first = false;
+    });
+  });
+  (dom.mean || []).forEach((mean, si) => {
+    if (mean) rows.push({ kind: "mean", mean, si, multi });
+  });
+  return rows;
 }
 
 function renderTables() {
   const box = $("#results-tables");
   box.innerHTML = "";
   if (!state.result) return;
+  const labels = state.result.series_labels || [];
 
-  state.result.domains.forEach((dom) => {
-    if (!dom.measures.length) return;
+  state.result.domains.forEach((dom, di) => {
+    const rows = domainTableRows(dom);
+    if (!rows.length) return;
     const table = el("table", { class: "result-table" });
     table.appendChild(el("tr", {}, [
       el("th", { text: t("col_measure") }),
@@ -451,30 +609,47 @@ function renderTables() {
       el("th", { text: t("col_band") }),
       el("th", { text: t("col_marker") }),
     ]));
-    dom.measures.forEach((m) => {
-      const score = m.value !== "" ? `${m.value} (${metricLabel(m.metric)})` : "";
-      const bandLabel = state.lang === "fr" ? m.band_fr : m.band_en;
-      table.appendChild(el("tr", {}, [
-        el("td", { text: state.lang === "fr" ? m.name_fr : m.name_en }),
-        el("td", { class: "num", text: score }),
-        el("td", { class: "num", text: m.percentile_display }),
-        el("td", { class: "band-cell", style: `background:${bandColor(m.band_index)}`, text: bandLabel }),
-        markCell(m.flag),
-      ]));
+    rows.forEach((row) => {
+      if (row.kind === "measure") {
+        const { m, cell, si } = row;
+        let score = `${cell.value} (${metricLabel(cell.metric)})`;
+        if (row.multi) score = `${labels[si]} · ${score}`;
+        const bandLabel = state.lang === "fr" ? cell.band_fr : cell.band_en;
+        table.appendChild(el("tr", {}, [
+          el("td", { text: row.showName ? nameOf(m) : "" }),
+          el("td", { class: "num" + (row.multi ? " series-cell" : ""), text: score }),
+          el("td", { class: "num", text: cell.percentile_display }),
+          el("td", { class: "band-cell", style: `background:${bandColor(cell.band_index)}`, text: bandLabel }),
+          markCell(cell.flag),
+        ]));
+      } else {
+        const { mean, si } = row;
+        let label = t("domain_mean");
+        if (row.multi) label = `${label} (${labels[si]})`;
+        const bandLabel = state.lang === "fr" ? mean.band_fr : mean.band_en;
+        table.appendChild(el("tr", { class: "mean-row" }, [
+          el("td", { text: label }),
+          el("td", { class: "num", text: "" }),
+          el("td", { class: "num", text: mean.percentile_display }),
+          el("td", { class: "band-cell", style: `background:${bandColor(mean.band_index)}`, text: bandLabel }),
+          el("td", { text: "" }),
+        ]));
+      }
     });
-    if (dom.mean_percentile_display !== null && dom.mean_percentile_display !== undefined) {
-      const meanBand = state.lang === "fr"
-        ? state.palette.labels_fr[dom.mean_band_index] : state.palette.labels_en[dom.mean_band_index];
-      table.appendChild(el("tr", { class: "mean-row" }, [
-        el("td", { text: t("domain_mean") }),
-        el("td", { class: "num", text: "" }),
-        el("td", { class: "num", text: dom.mean_percentile_display }),
-        el("td", { class: "band-cell", style: `background:${bandColor(dom.mean_band_index)}`, text: meanBand }),
-        el("td", { text: "" }),
-      ]));
-    }
+
+    // Per-domain clinical note, kept next to the results and figures.
+    const batDom = state.battery.domains[di];
+    const note = el("div", { class: "note-block" }, [
+      el("label", { text: t("note_label") }),
+      el("textarea", {
+        rows: "2", placeholder: t("note_ph"), spellcheck: "false",
+        oninput: (e) => { if (batDom) batDom.note = e.target.value; },
+      }),
+    ]);
+    note.querySelector("textarea").value = (batDom && batDom.note) || "";
+
     box.appendChild(el("div", { class: "domain-block" }, [
-      el("h3", { text: state.lang === "fr" ? dom.name_fr : dom.name_en }), table,
+      el("h3", { text: nameOf(dom) }), table, note,
     ]));
   });
 }
@@ -500,14 +675,93 @@ async function renderPlots() {
   }
   for (let di = 0; di < state.result.domains.length; di++) {
     const dom = state.result.domains[di];
-    if (!dom.measures.length) continue;
+    const any = dom.measures.some((m) => (m.series || []).some((c) => c));
+    if (!any) continue;
     const r = await api.render_domain_plot(di, opts);
     if (r.ok) {
-      const name = (state.lang === "fr" ? dom.name_fr : dom.name_en) || ("domain" + di);
+      const name = nameOf(dom) || ("domain" + di);
       box.appendChild(plotCard(name, r.png, r.svg, name.replace(/\W+/g, "_") + ".svg"));
     }
   }
 }
+
+/* ---------- 9. Lexicon --------------------------------------- */
+
+// Lexicon entries matching the administered sub-functions (any series).
+function matchedLexTerms() {
+  if (!state.result) return [];
+  const byName = {};
+  state.lex.terms.forEach((term) => {
+    byName[normName(term.name_fr)] = term;
+    byName[normName(term.name_en)] = term;
+  });
+  const out = [];
+  const seen = {};
+  state.result.domains.forEach((dom) => {
+    dom.measures.forEach((m) => {
+      if (!(m.series || []).some((c) => c)) return;
+      const term = byName[normName(m.name_fr)] || byName[normName(m.name_en)];
+      if (term && !seen[term.key]) { seen[term.key] = true; out.push(term); }
+    });
+  });
+  return out;
+}
+
+function lexText(term) {
+  const edits = state.lex.edits[term.key] || {};
+  if (state.lang === "fr") return edits.fr !== undefined ? edits.fr : term.def_fr;
+  return edits.en !== undefined ? edits.en : term.def_en;
+}
+
+function renderLexicon() {
+  const panel = $("#lexicon-panel");
+  const items = $("#lexicon-items");
+  const toggle = $("#lexicon-toggle");
+  items.innerHTML = "";
+  if (!state.result) { panel.style.display = "none"; return; }
+  panel.style.display = "block";
+  toggle.checked = state.lex.enabled;
+  items.classList.toggle("open", state.lex.enabled);
+
+  const terms = matchedLexTerms();
+  if (!terms.length) {
+    items.appendChild(el("p", { class: "muted", text: t("lexicon_empty") }));
+    return;
+  }
+  terms.forEach((term) => {
+    const checked = state.lex.checks[term.key] !== false;
+    const row = el("div", { class: "lex-item" + (checked ? "" : " unchecked") });
+    const cb = el("input", { type: "checkbox" });
+    cb.checked = checked;
+    cb.addEventListener("change", () => {
+      state.lex.checks[term.key] = cb.checked;
+      row.classList.toggle("unchecked", !cb.checked);
+    });
+    const ta = el("textarea", { rows: "2", spellcheck: "false" });
+    ta.value = lexText(term);
+    ta.addEventListener("input", () => {
+      if (!state.lex.edits[term.key]) state.lex.edits[term.key] = {};
+      state.lex.edits[term.key][state.lang] = ta.value;
+    });
+    row.appendChild(cb);
+    row.appendChild(el("span", { class: "lex-name",
+                                 text: state.lang === "fr" ? term.name_fr : term.name_en }));
+    row.appendChild(ta);
+    items.appendChild(row);
+  });
+}
+
+function lexiconForExport() {
+  if (!state.lex.enabled) return [];
+  return matchedLexTerms()
+    .filter((term) => state.lex.checks[term.key] !== false)
+    .map((term) => ({
+      term: state.lang === "fr" ? term.name_fr : term.name_en,
+      definition: lexText(term),
+    }));
+}
+
+/* ---------- 10. Draft & full results render ------------------ */
 
 async function refreshDraft() {
   const r = await api.get_report_text(state.lang);
@@ -517,15 +771,19 @@ async function refreshDraft() {
 async function renderResults() {
   const empty = $("#results-empty");
   renderThemeChips();
-  if (!state.result) { empty.style.display = "block"; return; }
-  empty.style.display = "none";
+  const hasResult = !!state.result;
+  empty.style.display = hasResult ? "none" : "block";
+  $("#lexicon-panel").style.display = hasResult ? "block" : "none";
+  if (!hasResult) return;
+  $("#global-note").value = state.globalNote;
   renderLegend();
   renderTables();
+  renderLexicon();
   await renderPlots();
   await refreshDraft();
 }
 
-/* ---------- 8. Clipboard & downloads ------------------------ */
+/* ---------- 11. Clipboard & downloads ------------------------ */
 
 function b64ToBlob(b64, type) {
   const bytes = atob(b64);
@@ -555,43 +813,49 @@ function downloadSVG(svg, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
 function buildTableExport() {
-  // Returns { html, text } for the whole percentile table.
-  const labels = state.lang === "fr" ? state.palette.labels_fr : state.palette.labels_en;
+  const labels = state.result.series_labels || [];
   let html = '<table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse">';
   let text = "";
   const cols = [t("col_measure"), t("col_score"), t("col_pct"), t("col_band"), t("col_marker")];
   state.result.domains.forEach((dom) => {
-    if (!dom.measures.length) return;
-    const dname = state.lang === "fr" ? dom.name_fr : dom.name_en;
-    html += `<tr><td colspan="5" style="font-weight:bold;background:#f0f4f6">${escapeHtml(dname)}</td></tr>`;
+    const rows = domainTableRows(dom);
+    if (!rows.length) return;
+    const dname = nameOf(dom);
+    html += `<tr><td colspan="5" style="font-weight:bold;background:#f0f2f4">${escapeHtml(dname)}</td></tr>`;
     text += `\n${dname}\n` + cols.join("\t") + "\n";
     html += "<tr>" + cols.map((c) => `<th>${escapeHtml(c)}</th>`).join("") + "</tr>";
-    dom.measures.forEach((m) => {
-      const score = m.value !== "" ? `${m.value} (${metricLabel(m.metric)})` : "";
-      const band = state.lang === "fr" ? m.band_fr : m.band_en;
-      const mark = m.flag === "strength" ? t("strength") : m.flag === "weakness" ? t("weakness") : "";
-      const name = state.lang === "fr" ? m.name_fr : m.name_en;
-      html += `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(score)}</td>`
-        + `<td>${escapeHtml(m.percentile_display)}</td>`
-        + `<td style="background:${state.palette.bands[m.band_index]}">${escapeHtml(band)}</td>`
-        + `<td>${escapeHtml(mark)}</td></tr>`;
-      text += [name, score, m.percentile_display, band, mark].join("\t") + "\n";
+    rows.forEach((row) => {
+      if (row.kind === "measure") {
+        const { m, cell, si } = row;
+        let score = `${cell.value} (${metricLabel(cell.metric)})`;
+        if (row.multi) score = `${labels[si]} · ${score}`;
+        const band = state.lang === "fr" ? cell.band_fr : cell.band_en;
+        const mark = cell.flag === "strength" ? t("strength") : cell.flag === "weakness" ? t("weakness") : "";
+        const name = row.showName ? nameOf(m) : "";
+        html += `<tr><td>${escapeHtml(name)}</td><td>${escapeHtml(score)}</td>`
+          + `<td>${escapeHtml(cell.percentile_display)}</td>`
+          + `<td style="background:${bandColor(cell.band_index)}">${escapeHtml(band)}</td>`
+          + `<td>${escapeHtml(mark)}</td></tr>`;
+        text += [name, score, cell.percentile_display, band, mark].join("\t") + "\n";
+      } else {
+        const { mean, si } = row;
+        let label = t("domain_mean");
+        if (row.multi) label = `${label} (${labels[si]})`;
+        const band = state.lang === "fr" ? mean.band_fr : mean.band_en;
+        html += `<tr><td style="font-weight:bold">${escapeHtml(label)}</td><td></td>`
+          + `<td style="font-weight:bold">${escapeHtml(mean.percentile_display)}</td>`
+          + `<td style="background:${bandColor(mean.band_index)}">${escapeHtml(band)}</td><td></td></tr>`;
+        text += [label, "", mean.percentile_display, band, ""].join("\t") + "\n";
+      }
     });
-    if (dom.mean_percentile_display) {
-      const band = labels[dom.mean_band_index];
-      html += `<tr><td style="font-weight:bold">${escapeHtml(t("domain_mean"))}</td><td></td>`
-        + `<td style="font-weight:bold">${escapeHtml(dom.mean_percentile_display)}</td>`
-        + `<td style="background:${state.palette.bands[dom.mean_band_index]}">${escapeHtml(band)}</td><td></td></tr>`;
-      text += [t("domain_mean"), "", dom.mean_percentile_display, band, ""].join("\t") + "\n";
-    }
   });
   html += "</table>";
   return { html, text };
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
 async function copyTable() {
@@ -614,7 +878,7 @@ async function copyTable() {
   }
 }
 
-/* ---------- 9. Language & threshold ------------------------- */
+/* ---------- 12. Language & threshold ------------------------- */
 
 async function setLang(lang) {
   if (lang !== "fr" && lang !== "en") return;
@@ -640,16 +904,21 @@ async function onThresholdChange(e) {
   }
 }
 
-/* ---------- 10. Template / session actions ------------------ */
+/* ---------- 13. Template / session actions ------------------- */
 
 async function onLoadTemplate() {
   const res = await api.load_template();
   if (res.cancelled) return;
   if (!res.ok) { toast(t("load_error") + (res.error ? ": " + res.error : "")); return; }
-  state.battery = normaliseBattery(res.template);
+  // A template redefines the battery: entries reset to a single series.
+  state.seriesLabels = [t("series_t1")];
+  state.battery = normaliseBattery(res.template, 1);
   if (res.template.threshold_sd != null) {
     state.threshold = res.template.threshold_sd;
     $("#threshold-input").value = state.threshold;
+  }
+  if (typeof res.template.clinician === "string" && res.template.clinician.trim()) {
+    state.clinician = res.template.clinician.trim();
   }
   renderBattery();
   renderEntry();
@@ -657,6 +926,7 @@ async function onLoadTemplate() {
 }
 
 async function onSaveTemplate() {
+  state.clinician = $("#clinician-input") ? $("#clinician-input").value.trim() : state.clinician;
   const res = await api.save_template(batteryToTemplate());
   if (res.ok) toast(t("saved_template"));
   else if (res.error) toast(res.error);
@@ -664,6 +934,7 @@ async function onSaveTemplate() {
 
 async function onSaveSession() {
   state.patientId = $("#patient-id").value.trim();
+  state.clinician = $("#clinician-input").value.trim();
   const res = await api.save_session(batteryToSession());
   if (res.ok) toast(t("saved_session"));
   else if (res.error) toast(res.error);
@@ -674,13 +945,24 @@ async function onLoadSession() {
   if (res.cancelled) return;
   if (!res.ok) { toast(t("load_error") + (res.error ? ": " + res.error : "")); return; }
   const s = res.session;
-  state.battery = normaliseBattery(s);
+  const labels = Array.isArray(s.series_labels) && s.series_labels.length
+    ? s.series_labels.slice(0, MAX_SERIES).map(String) : [t("series_t1")];
+  state.seriesLabels = labels;
+  state.battery = normaliseBattery(s, labels.length);
   state.patientId = s.patient_id || "";
+  state.clinician = s.clinician || "";
+  state.globalNote = s.global_note || "";
   if (s.threshold_sd != null) { state.threshold = s.threshold_sd; $("#threshold-input").value = s.threshold_sd; }
   if (s.theme && state.themes.some((th) => th.key === s.theme)) {
     state.theme = s.theme;
     const pal = await api.get_palette(s.theme);
     if (pal && pal.ok) state.palette = pal;
+  }
+  if (s.lexicon && typeof s.lexicon === "object") {
+    state.lex.enabled = s.lexicon.enabled !== false;
+    state.lex.checks = {};
+    (s.lexicon.unchecked || []).forEach((k) => { state.lex.checks[k] = false; });
+    state.lex.edits = s.lexicon.edits && typeof s.lexicon.edits === "object" ? s.lexicon.edits : {};
   }
   state.result = null;
   await setLang(s.language === "en" ? "en" : "fr");
@@ -691,13 +973,24 @@ async function onLoadSession() {
 
 async function onExport() {
   if (!state.result) return;
-  const opts = { radial_mode: state.options.radialMode, show_summary: state.options.showSummary, theme: state.theme };
+  state.globalNote = $("#global-note").value;
+  const opts = {
+    radial_mode: state.options.radialMode,
+    show_summary: state.options.showSummary,
+    theme: state.theme,
+    clinician: state.clinician,
+    notes: {
+      domains: state.battery.domains.map((d) => d.note || ""),
+      global: state.globalNote,
+    },
+    lexicon: lexiconForExport(),
+  };
   const res = await api.export_docx($("#draft-text").value, state.lang, opts);
   if (res.ok) toast(t("exported"));
   else if (res.error) toast(res.error);
 }
 
-/* ---------- 11. Wiring -------------------------------------- */
+/* ---------- 14. Wiring --------------------------------------- */
 
 function wireEvents() {
   $$(".lang-btn").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
@@ -707,18 +1000,20 @@ function wireEvents() {
   $("#btn-load-template").addEventListener("click", onLoadTemplate);
   $("#btn-save-template").addEventListener("click", onSaveTemplate);
   $("#btn-add-domain").addEventListener("click", () => {
-    state.battery.domains.push({ name_fr: T.fr.new_domain, name_en: T.en.new_domain, measures: [] });
+    state.battery.domains.push({ name_fr: T.fr.new_domain, name_en: T.en.new_domain, note: "", measures: [] });
     syncBattery();
   });
   $("#btn-add-addon").addEventListener("click", () => {
     const idx = parseInt($("#addon-select").value, 10);
     const src = state.addons[idx];
     if (!src) return;
-    state.battery.domains.push(normaliseBattery({ domains: [src] }).domains[0]);
+    state.battery.domains.push(
+      normaliseBattery({ domains: [src] }, state.seriesLabels.length).domains[0]);
     syncBattery();
   });
 
   $("#patient-id").addEventListener("input", (e) => { state.patientId = e.target.value; });
+  $("#clinician-input").addEventListener("input", (e) => { state.clinician = e.target.value; });
   $("#btn-compute").addEventListener("click", onCompute);
   $("#btn-save-session").addEventListener("click", onSaveSession);
   $("#btn-load-session").addEventListener("click", onLoadSession);
@@ -732,11 +1027,16 @@ function wireEvents() {
     state.options.showSummary = e.target.checked;
     if (state.result) await renderPlots();
   });
+  $("#lexicon-toggle").addEventListener("change", (e) => {
+    state.lex.enabled = e.target.checked;
+    $("#lexicon-items").classList.toggle("open", state.lex.enabled);
+  });
+  $("#global-note").addEventListener("input", (e) => { state.globalNote = e.target.value; });
   $("#btn-copy-table").addEventListener("click", copyTable);
   $("#btn-export").addEventListener("click", onExport);
 }
 
-/* ---------- 12. Startup ------------------------------------- */
+/* ---------- 15. Startup -------------------------------------- */
 
 async function init() {
   try {
@@ -750,15 +1050,21 @@ async function init() {
     const pal = await api.get_palette(state.theme);
     if (pal && pal.ok) state.palette = pal;
 
+    const lex = await api.get_lexicon();
+    if (lex && lex.ok) state.lex.terms = lex.terms;
+
     const addons = await api.get_addon_domains();
     if (addons && addons.ok) { state.addons = addons.domains; populateAddons(); }
 
     const dt = await api.get_default_template();
     if (dt && dt.ok) {
-      state.battery = normaliseBattery(dt.template);
+      state.battery = normaliseBattery(dt.template, state.seriesLabels.length);
       if (dt.template.threshold_sd != null) {
         state.threshold = dt.template.threshold_sd;
         $("#threshold-input").value = state.threshold;
+      }
+      if (typeof dt.template.clinician === "string") {
+        state.clinician = dt.template.clinician;
       }
     }
     renderBattery();
